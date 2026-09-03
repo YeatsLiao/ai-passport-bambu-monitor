@@ -189,6 +189,39 @@ UP/DOWN 按键按下后，页码计数器变化但 UI 没有更新。原因：`n
 
 ---
 
+## 阶段 6：多风格 UI 重构 + 电池/NTP + AMS 完整解析（v2 架构）
+
+### 新架构：翻页改用显示/隐藏切换
+
+早期方案是翻页时 `lv_obj_clean(s_scr)` 清屏重建，在 ESP32-C3 低内存下反复出现顶部/底部栏不更新等渲染异常。v2 架构彻底放弃 destroy/rebuild：
+
+- 标题栏、底部栏、两页卡片在首次 `build()` 时一次性创建
+- 翻页只切换 `LV_OBJ_FLAG_HIDDEN`，指针永远有效
+- 页码标签由风格文件自己管理（不再经由框架层 setter）
+
+### 顶栏新布局
+
+```
+Bambu        15:31        BAT:100%
+```
+
+- 左：Bambu 标题
+- 中：SNTP 实时时间（ntp.aliyun.com + pool.ntp.org，时区 CST-8，未同步显示 --:--）
+- 右：CW2017 电池电量（I2C 0x63，芯片不存在时静默跳过）
+- Connecting 状态移入卡片 CMP_STATE 组件（MQTT 未连接时显示）
+
+### AMS 完整解析（三个连环坑）
+
+以真实抓包报文 `docs/Topic-device.json` 为准，修正了三个解析错误：
+
+1. **JSON 路径少一层嵌套**：真实结构是 `print.ams.ams[unit].tray[]`（AMS 对象内嵌套 AMS 单元数组），原代码找 `print.ams.tray` 永远为 NULL，导致 AMS 页全空
+2. **字符串数字字段**：`tray_now`、`tray.id` 都是字符串（`"0"`~`"3"`），用 `valueint` 读取恒为 0
+3. **颜色字段类型**：`cols` 是 JSON 数组不是字符串，必须读 `tray_color` 字符串（或 `cols[0]`），否则色块永远灰色
+
+新增外挂料槽（Ext/虚拟托盘）解析：`print.vt_tray`，与 AMS 料槽共用 `parse_tray_obj()`。AMS 页显示 5 行（#1~#4 + Ext），每行前置色块，颜色取 `tray_color` 前 6 位 hex 渲染。
+
+---
+
 ## 踩坑总结（给后来者）
 
 | # | 坑 | 教训 |
@@ -201,14 +234,28 @@ UP/DOWN 按键按下后，页码计数器变化但 UI 没有更新。原因：`n
 | 6 | MQTT `.tls` 成员不存在 | ESP-IDF 5.5.x 改为 `.broker.verification` 嵌套结构 |
 | 7 | TLS 跳过验证不生效 | `ESP_TLS_SKIP_SERVER_CERT_VERIFY` 依赖 `ESP_TLS_INSECURE` |
 | 8 | LVGL Guru Meditation Error | 不要用 user_data + 遍历查找 UI 对象，用结构体直接保存指针 |
-| 9 | 翻页无效果 | 翻页必须重建 UI 内容，不能只改计数器 |
+| 9 | 翻页无效果 | v1: 翻页必须重建 UI 内容；v2: 改为对象一次性创建 + HIDDEN 切换 |
 | 10 | sdkconfig 修改不生效 | 必须 `del sdkconfig && idf.py fullclean` 清除缓存 |
+| 11 | 反复改代码设备行为没变化 | 先查 `config.h` 的 `CFG_UI_STYLE` 实际编译哪个风格文件，用 map 文件验证符号是否被链接 |
+| 12 | AMS 数据全空 | JSON 路径是 `print.ams.ams[].tray[]`，不是 `print.ams.tray` |
+| 13 | 颜色/料槽号读不到 | `cols` 是数组、`tray_now`/`id` 是字符串，cJSON 取值前先确认字段真实类型 |
+| 14 | 低内存下 destroy/rebuild 翻页渲染异常 | UI 对象一次性创建，翻页只切 `LV_OBJ_FLAG_HIDDEN` |
 
 ---
 
 ## 提交历史（分步提交记录）
 
 ```
+docs: 同步 README/开发日志 + MQTT 报文样例 + UI 设计描述
+style: AMS 标签去掉颜色 hex 文本（色块已表达颜色）
+fix: tray_color 字段解析（cols 是数组不是字符串）
+feat: 外挂料槽 vt_tray 解析 + AMS 页 5 槽位 + MQTT 颜色色块
+fix: AMS JSON 路径修正（ams.ams[].tray[]）+ 字符串数字字段
+feat: 顶栏 Bambu 标题 + NTP 实时时间 + 电池
+fix: style_neon 应用新架构（此前改错了文件，设备编译的是 neon 风格）
+feat: 翻页改显示/隐藏切换 + CW2017 电池驱动 + 多风格 UI 框架
+feat: 添加 Windows 一键编译脚本
+fix: 标题栏/底部栏主题颜色 + 持久化架构
 docs: 添加项目文档和开发日志
 fix: 修复 LVGL UI crash 和卡片风格翻页
 fix: 修复 MQTT-TLS 连接（ESP-TLS Kconfig 依赖）

@@ -9,9 +9,11 @@ AI Passport Bambu Monitor 是基于 FoloToy AI Passport 硬件的拓竹打印机
 | 功能 | 说明 |
 |------|------|
 | 实时状态监控 | 喷嘴/热床/腔体温度、打印进度、层数、剩余时间、打印状态 |
-| AMS 信息 | 耗材类型、颜色、剩余量、当前使用托盘 |
+| NTP 实时时间 | SNTP 同步（ntp.aliyun.com，UTC+8），顶栏中间显示 HH:MM |
+| 电池电量 | CW2017 电量计（I2C），顶栏右侧显示 BAT:xx% |
+| AMS 信息 | 4 个 AMS 料槽 + 外挂料槽（Ext）：耗材类型、色块、剩余量、当前使用托盘 |
 | 风扇转速 | 冷却风扇、部件风扇百分比 |
-| 4 种 UI 风格 | 简洁文本 / 仪表盘 / 卡片（分页）/ 可爱风 |
+| 6 种 UI 风格 | 编译时由 `CFG_UI_STYLE` 选择 1 种（拓竹/赛博/希卡/纯白/工控/霓虹） |
 | 4 种颜色主题 | 深色 / 浅色 / 拓竹绿 / 马卡龙 |
 | 3 按键交互 | UP/DOWN 翻页，OK 手动刷新 |
 | 自动重连 | WiFi 和 MQTT 断线自动重连 |
@@ -41,6 +43,7 @@ AI Passport Bambu Monitor 是基于 FoloToy AI Passport 硬件的拓竹打印机
 
 - **bsp_display**: ST7789P 240×320 显示屏驱动 + LVGL 集成（`bsp_lvgl_lock/unlock`）
 - **bsp_button**: 三按键输入（上/下/确认），支持单击/长按事件
+- **bsp_i2c / bsp_battery**: I2C 主机 + CW2017 电量计驱动
 - **bsp_pins**: ESP32-C3 引脚定义
 
 ### 通信层 (MQTT-TLS)
@@ -64,7 +67,7 @@ AI Passport Bambu Monitor 是基于 FoloToy AI Passport 硬件的拓竹打印机
                                           └─ update_ui() → LVGL 刷新
 ```
 
-JSON 数据结构（`print` 对象内的关键字段）：
+JSON 数据结构（`print` 对象内的关键字段，完整报文见 [Topic-device.json](Topic-device.json)）：
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -76,7 +79,10 @@ JSON 数据结构（`print` 对象内的关键字段）：
 | `gcode_state` | string | 打印状态 IDLE/RUNNING/PAUSE/FINISH/FAILED |
 | `spd_lvl` | int | 速度等级 1-5 |
 | `cooling_fan_speed` | int | 冷却风扇 0-100 |
-| `ams.tray` | array | AMS 托盘信息 |
+| `ams.ams[].tray[]` | array | AMS 料槽（注意 `ams` 内嵌套 `ams` 单元数组） |
+| `ams.tray_now` | string | 当前使用的料槽号（`"0"`~`"3"`，是字符串） |
+| `vt_tray` | object | 外挂料槽（Ext，虚拟托盘，不占 AMS 槽位） |
+| `tray[].tray_color` | string | 耗材颜色 `RRGGBBAA` hex（注意 `cols` 是数组不是字符串） |
 
 ## 代码结构
 
@@ -170,17 +176,35 @@ ESP32-C3 无 PSRAM，已做以下优化：
 - JSON 解析：cJSON 解析后立即释放原始字符串
 - TLS：跳过证书验证（避免 CA 证书存储分配）
 
-### 卡片风格分页
+### NTP 时间同步
 
-卡片/可爱风格使用 3 页分页浏览：
+WiFi/MQTT 连接就绪后初始化 SNTP：服务器 `ntp.aliyun.com` + `pool.ntp.org`，时区 `CST-8`（UTC+8）。未同步时顶栏显示 `--:--`，同步后每秒刷新。
+
+### 电池电量
+
+CW2017 电量计挂 I2C 总线（地址 0x63），顶栏右侧显示 `BAT:xx%`；芯片不存在时静默跳过（USB 供电场景）。
+
+### 多风格 UI 与翻页
+
+共 6 套 UI 风格（设计描述见 [UI-DESIGN.md](UI-DESIGN.md)），编译时由 `config.h` 的 `CFG_UI_STYLE` 宏选择 1 种链接进固件：
+
+| 宏值 | 源文件 | 风格 |
+|------|--------|------|
+| `STYLE_BAMBU` | style_bambu.c | 拓竹原厂极简工业风 |
+| `STYLE_CYBER` | style_cyber.c | 赛博极简监控风 |
+| `STYLE_SHEIKAH` | style_sheikah.c | 希卡石板极简衍生风 |
+| `STYLE_WHITE` | style_white.c | 纯白极简素雅风 |
+| `STYLE_INDUSTRIAL` | style_industrial.c | 硬核机房工控风 |
+| `STYLE_NEON` | style_neon.c | 极简霓虹低饱和极客风 |
+
+卡片风格使用 2 页分页：
 
 | 页面 | 内容 |
 |------|------|
-| Page 0 | 主状态：进度百分比、进度条、温度、层数、速度 |
-| Page 1 | 温度详情：喷嘴/热床/腔体温度 + 风扇转速 |
-| Page 2 | AMS 信息：4 个托盘的耗材类型、颜色、剩余量 |
+| Page 0 | 主状态：进度百分比、进度条、温度、层数、速度、打印状态 |
+| Page 1 | AMS 信息：4 个料槽 + Ext 外挂（色块 + 耗材类型 + 剩余量） |
 
-翻页时清空内容容器重建，页码指示器自动更新。
+翻页架构（v2）：标题栏/底部栏/两页卡片**首次一次性创建**，之后翻页只切换 `LV_OBJ_FLAG_HIDDEN`，不销毁不重建——避免低内存下 destroy/rebuild 导致的渲染异常和悬空指针。页码指示器由风格文件直接管理。
 
 ## 故障排查
 
@@ -191,6 +215,8 @@ ESP32-C3 无 PSRAM，已做以下优化：
 | LVGL Guru Meditation Error | UI 对象指针无效访问 | 用结构体保存指针，不用 user_data 遍历 |
 | 中文显示方块 | Montserrat 字体无中文 | UI 文案使用英文或 LV_SYMBOL |
 | `sdkconfig` 修改不生效 | 旧 sdkconfig 缓存 | `del sdkconfig && idf.py fullclean` |
+| 修改 UI 代码后设备无变化 | `CFG_UI_STYLE` 选的不是改的文件 | 查 map 文件确认链接的是哪个 style_*.c.obj |
+| AMS 数据全空 | JSON 解析路径错误 | 真实结构 `print.ams.ams[unit].tray[]`，不是 `print.ams.tray` |
 
 ## 参考项目
 

@@ -18,6 +18,9 @@ managed_components/
 # 个人配置（含 WiFi 密码和打印机访问码，请勿提交）
 main/config.h
 
+# 本地编译日志
+build_log.txt
+
 # OS
 .DS_Store
 Thumbs.db
