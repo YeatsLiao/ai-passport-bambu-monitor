@@ -348,7 +348,7 @@ void style_neon_update(void) {
             if (i < 4) snprintf(name, sizeof(name), "#%d", i + 1);
             else       snprintf(name, sizeof(name), "Ext");
             if (t->type[0])
-                snprintf(buf, sizeof(buf), "%s %s %s %d%%", name, t->type, t->color, (int)t->remain);
+                snprintf(buf, sizeof(buf), "%s %s %d%%", name, t->type, (int)t->remain);
             else
                 snprintf(buf, sizeof(buf), "%s %s", name, L_EMPTY);
             lv_label_set_text(s_ams_lbl[i], buf);
