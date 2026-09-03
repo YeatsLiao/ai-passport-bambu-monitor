@@ -12,5 +12,5 @@ idf_component_register(
          "ui/style_neon.c"
     INCLUDE_DIRS "."
     REQUIRES bsp esp_event esp_hw_support esp_netif esp_wifi esp_timer
-             mqtt nvs_flash json
+             mqtt nvs_flash json lwip
 )

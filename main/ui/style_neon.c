@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 static const char *TAG __attribute__((unused)) = "style_neon";
 
@@ -48,14 +49,11 @@ static lv_obj_t *s_bar = NULL;
 static lv_obj_t *s_ams_lbl[4];
 
 // 标题栏标签
-static lv_obj_t *s_time_lbl = NULL;   // 运行时间 (HH:MM:SS)
+static lv_obj_t *s_time_lbl = NULL;   // 实时时间 (NTP 同步, HH:MM)
 static lv_obj_t *s_bat_lbl  = NULL;   // 电池电量
 
 // 底部栏页码标签
 static lv_obj_t *s_pg_lbl   = NULL;
-
-// 运行时间计数器 (秒)
-static uint32_t s_uptime_sec = 0;
 
 static lv_obj_t *mk_lbl(lv_obj_t *p, const char *t, const lv_font_t *f, uint32_t c) {
     if (!p) return NULL;
@@ -194,8 +192,11 @@ void style_neon_build(void) {
     lv_obj_set_style_pad_all(header, 4, 0);
     lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
-    s_time_lbl = mk_lbl(header, "00:00:00", &lv_font_montserrat_14, c->accent);
-    if (s_time_lbl) lv_obj_align(s_time_lbl, LV_ALIGN_LEFT_MID, 4, 0);
+    lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, &lv_font_montserrat_14, c->accent);
+    if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
+
+    s_time_lbl = mk_lbl(header, "--:--", &lv_font_montserrat_14, c->text_primary);
+    if (s_time_lbl) lv_obj_align(s_time_lbl, LV_ALIGN_CENTER, 0, 0);
 
     s_bat_lbl = mk_lbl(header, "BAT:--", &lv_font_montserrat_14, c->text_secondary);
     if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -4, 0);
@@ -249,14 +250,16 @@ void style_neon_update(void) {
     const ui_theme_colors_t *c = ui_theme_get_colors();
     char buf[48];
 
-    // 更新运行时间
-    s_uptime_sec++;
+    // 更新时间（NTP 同步成功后显示实时时间，未同步显示 --:--）
     if (s_time_lbl) {
-        int h = s_uptime_sec / 3600;
-        int m = (s_uptime_sec % 3600) / 60;
-        int s = s_uptime_sec % 60;
-        snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
-        lv_label_set_text(s_time_lbl, buf);
+        time_t now = 0;
+        struct tm ti = {0};
+        time(&now);
+        localtime_r(&now, &ti);
+        if (ti.tm_year > (2020 - 1900)) {
+            snprintf(buf, sizeof(buf), "%02d:%02d", ti.tm_hour, ti.tm_min);
+            lv_label_set_text(s_time_lbl, buf);
+        }
     }
 
     // 更新电池

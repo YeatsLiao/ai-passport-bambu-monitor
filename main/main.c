@@ -22,7 +22,9 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
+#include "esp_sntp.h"
 #include <string.h>
+#include <time.h>
 
 static const char *TAG = "main";
 
@@ -85,6 +87,15 @@ void app_main(void) {
     } else {
         ESP_LOGI(TAG, "MQTT 已连接，TLS 内存已释放");
     }
+
+    // 5.5 初始化 SNTP 时间同步（WiFi 已连接，中国时区 UTC+8）
+    setenv("TZ", "CST-8", 1);
+    tzset();
+    esp_sntp_setoperatingmode(ESP_SNTP_OPMODE_POLL);
+    esp_sntp_setservername(0, "ntp.aliyun.com");
+    esp_sntp_setservername(1, "pool.ntp.org");
+    esp_sntp_init();
+    ESP_LOGI(TAG, "SNTP 时间同步已启动");
 
     // 6. 初始化 LVGL
     ESP_LOGI(TAG, "初始化 LVGL (可用堆: %lu)...", esp_get_free_heap_size());
