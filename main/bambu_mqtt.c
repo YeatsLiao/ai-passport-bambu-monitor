@@ -119,7 +119,13 @@ static esp_err_t wifi_connect(void) {
 // 解析单个托盘对象 (AMS 料槽和外挂料槽 vt_tray 共用)
 static void parse_tray_obj(cJSON *tray, bambu_ams_tray_t *t, int active_tray) {
     if (!tray || !t) return;
-    cJSON *item = cJSON_GetObjectItem(tray, "cols");
+    // 颜色: 优先 tray_color (字符串); cols 是数组, 取首个元素作后备
+    cJSON *item = cJSON_GetObjectItem(tray, "tray_color");
+    if (!item || !item->valuestring) {
+        cJSON *cols = cJSON_GetObjectItem(tray, "cols");
+        if (cols && cJSON_IsArray(cols))
+            item = cJSON_GetArrayItem(cols, 0);
+    }
     if (item && item->valuestring)
         strncpy(t->color, item->valuestring, sizeof(t->color) - 1);
     item = cJSON_GetObjectItem(tray, "tray_type");
