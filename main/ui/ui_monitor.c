@@ -22,8 +22,7 @@ static const char *TAG = "ui_monitor";
 
 lv_obj_t *s_scr = NULL;
 static lv_timer_t *s_refresh_timer = NULL;
-lv_obj_t *s_content_area  = NULL;   // 内容容器（翻页时只清理这里）
-static lv_obj_t *s_page_ind_lbl  = NULL;   // 底部栏页码标签
+lv_obj_t *s_content_area  = NULL;   // 内容容器
 
 // ---------------------------------------------------------------------------
 // 风格宏: 根据 CFG_UI_STYLE 选择对应的风格函数
@@ -76,25 +75,11 @@ static lv_obj_t *s_page_ind_lbl  = NULL;   // 底部栏页码标签
 // 页面重建（只清理内容区域，标题栏和底部栏保持不变）
 // ---------------------------------------------------------------------------
 void rebuild_page(void) {
-    if (!s_content_area) return;
-    // 风格 build 函数内部负责清理 s_content_area
+    // 当前风格使用显示/隐藏切换, 此函数保留供兼容
     STYLE_BUILD();
-
-    // 更新底部栏页码
-    if (s_page_ind_lbl) {
-        char pg[16];
-        snprintf(pg, sizeof(pg), "%d/%d", STYLE_CUR_PAGE() + 1, STYLE_PAGE_COUNT());
-        lv_label_set_text(s_page_ind_lbl, pg);
-    }
-
     ESP_LOGI(TAG, "页面已重建 (style=%s, page=%d/%d)",
              ui_theme_style_name(),
              STYLE_CUR_PAGE() + 1, STYLE_PAGE_COUNT());
-}
-
-// 风格文件通过此函数设置底部栏页码文本
-void ui_monitor_set_page_ind(const char *text) {
-    if (s_page_ind_lbl && text) lv_label_set_text(s_page_ind_lbl, text);
 }
 
 // ---------------------------------------------------------------------------
@@ -133,7 +118,6 @@ void ui_monitor_exit(void) {
         s_scr = NULL;
     }
     s_content_area  = NULL;
-    s_page_ind_lbl  = NULL;
 }
 
 void ui_monitor_key(bsp_btn_t btn, bsp_btn_ev_t ev) {

@@ -1,5 +1,5 @@
 // main/ui/style_bambu.c —— 风格1: 拓竹原厂工业风
-// 参考 TRAE 设备: 深蓝标题栏 + 白色内容卡片 + 绿色底部栏
+// 翻页策略: 两页卡片同时创建, 翻页只切换显示/隐藏 (不 destroy/rebuild)
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
@@ -24,9 +24,8 @@ static const char *TAG __attribute__((unused)) = "style_bambu";
 #define CMP_REMAIN   6
 #define CMP_STATE    7
 #define CMP_SPEED    8
-#define CMP_AMS      9
 
-// 默认组件顺序（前6个放 page0，AMS 单独 page1）
+// 默认组件顺序 (page0)
 #ifndef CFG_COMPONENT_ORDER
 static const int s_default_order[] = {5, 4, 1, 2, 7, 8};
 #define s_order      s_default_order
@@ -36,23 +35,32 @@ static const int s_order[] = CFG_COMPONENT_ORDER;
 #define s_order_len  (sizeof(s_order) / sizeof(s_order[0]))
 #endif
 
-#define HAS_AMS  1  // AMS 总是作为第2页
+#define HAS_AMS  1
 
-// UI 对象（s_scr 由 ui_monitor 提供）
+// ── UI 对象 ──
 static int s_page = 0;
 static int s_total_pages = 1 + HAS_AMS;
 
-// Page 0 组件标签指针（按顺序最多6个）
-static lv_obj_t *s_lbl[6];
-static lv_obj_t *s_bar = NULL;       // 进度条
-static int s_bar_idx = -1;           // 进度条在 s_lbl 中的位置
+// 两页卡片容器 (翻页时只切换可见性)
+static lv_obj_t *s_card[2] = {NULL, NULL};
 
-// Page 1 AMS
+// Page 0 组件标签
+static lv_obj_t *s_lbl[6];
+static lv_obj_t *s_bar = NULL;
+static int s_bar_idx = -1;
+
+// Page 1 AMS 标签
 static lv_obj_t *s_ams_lbl[4];
 
-// 标题栏动态标签（build 时创建，update 时更新）
-static lv_obj_t *s_status_lbl = NULL;   // 连接状态
-static lv_obj_t *s_bat_lbl = NULL;      // 电池电量
+// 标题栏标签
+static lv_obj_t *s_time_lbl = NULL;   // 运行时间 (HH:MM:SS)
+static lv_obj_t *s_bat_lbl  = NULL;   // 电池电量
+
+// 底部栏页码标签
+static lv_obj_t *s_pg_lbl   = NULL;   // 页码 "1/2"
+
+// 运行时间计数器 (秒)
+static uint32_t s_uptime_sec = 0;
 
 // ---------------------------------------------------------------------------
 // 工具函数
@@ -87,12 +95,14 @@ static uint32_t state_color(bambu_print_state_t s, const ui_theme_colors_t *c) {
 }
 
 // ---------------------------------------------------------------------------
-// 构建 Page 0: 主状态卡片
+// 构建 Page 0: 主状态卡片 (创建为 s_content_area 的子对象)
 // ---------------------------------------------------------------------------
 static void build_page0(void) {
     const ui_theme_colors_t *c = ui_theme_get_colors();
     lv_obj_t *card = lv_obj_create(s_content_area);
     if (!card) return;
+    s_card[0] = card;
+
     lv_obj_set_pos(card, 8, 34);
     lv_obj_set_size(card, 224, 218);
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
@@ -139,7 +149,7 @@ static void build_page0(void) {
                 break;
             case CMP_STATE:
                 color = c->text_secondary;
-                snprintf(buf, sizeof(buf), L_STATE_IDLE);
+                snprintf(buf, sizeof(buf), L_CONNECTING);
                 break;
             case CMP_SPEED:
                 color = c->text_secondary;
@@ -152,7 +162,6 @@ static void build_page0(void) {
         s_lbl[i] = mk_lbl(card, buf, font, color);
         if (s_lbl[i]) lv_obj_set_pos(s_lbl[i], 0, y);
 
-        // 进度条紧跟在 percent 标签后面
         if (cmp == CMP_PERCENT) {
             y += 36;
             lv_obj_t *bar_bg = lv_obj_create(card);
@@ -180,12 +189,14 @@ static void build_page0(void) {
 }
 
 // ---------------------------------------------------------------------------
-// 构建 Page 1: AMS
+// 构建 Page 1: AMS (创建为 s_content_area 的子对象)
 // ---------------------------------------------------------------------------
 static void build_page1(void) {
     const ui_theme_colors_t *c = ui_theme_get_colors();
     lv_obj_t *card = lv_obj_create(s_content_area);
     if (!card) return;
+    s_card[1] = card;
+
     lv_obj_set_pos(card, 8, 34);
     lv_obj_set_size(card, 224, 218);
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
@@ -195,7 +206,6 @@ static void build_page1(void) {
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
     mk_lbl(card, L_AMS, &lv_font_montserrat_20, c->accent);
-    // AMS 内容在 update 中动态刷新
     for (int i = 0; i < 4; i++) {
         s_ams_lbl[i] = mk_lbl(card, L_EMPTY, &lv_font_montserrat_14, c->text_secondary);
         if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 0, 36 + i * 26);
@@ -203,171 +213,173 @@ static void build_page1(void) {
 }
 
 // ---------------------------------------------------------------------------
-// 构建整个屏幕
+// 构建整个屏幕 (首次创建所有持久对象)
 // ---------------------------------------------------------------------------
 void style_bambu_build(void) {
     if (!s_scr) return;
     const ui_theme_colors_t *c = ui_theme_get_colors();
 
-    // ── 首次 build 或重新进入: 创建标题栏/底部栏/内容区 ──
-    // 检查标题栏是否已存在（s_scr 的第1个子对象）
-    lv_obj_t *header = lv_obj_get_child(s_scr, 0);
-    if (!header || !lv_obj_is_valid(header)) {
-        // 所有旧指针失效（重新进入场景）
-        s_status_lbl = NULL;
-        s_bat_lbl = NULL;
+    // 检查是否已创建 (翻页时 build 被再次调用, 但对象已存在)
+    if (s_card[0] || s_card[1]) return;  // 已经创建过, 跳过
 
-        // 屏幕背景
-        lv_obj_set_style_bg_color(s_scr, lv_color_hex(c->bg), 0);
+    // 屏幕背景
+    lv_obj_set_style_bg_color(s_scr, lv_color_hex(c->bg), 0);
 
-        // ── 标题栏（创建一次，持久存在） ──
-        header = lv_obj_create(s_scr);
-        lv_obj_set_pos(header, 0, 0);
-        lv_obj_set_size(header, 240, 30);
-        lv_obj_set_style_bg_color(header, lv_color_hex(c->header_bg), 0);
-        lv_obj_set_style_radius(header, 0, 0);
-        lv_obj_set_style_border_width(header, 0, 0);
-        lv_obj_set_style_pad_all(header, 4, 0);
-        lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
+    // ── 标题栏 (持久) ──
+    lv_obj_t *header = lv_obj_create(s_scr);
+    lv_obj_set_pos(header, 0, 0);
+    lv_obj_set_size(header, 240, 30);
+    lv_obj_set_style_bg_color(header, lv_color_hex(c->header_bg), 0);
+    lv_obj_set_style_radius(header, 0, 0);
+    lv_obj_set_style_border_width(header, 0, 0);
+    lv_obj_set_style_pad_all(header, 4, 0);
+    lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
-        lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, &lv_font_montserrat_14, 0xFFFFFF);
-        if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
+    s_time_lbl = mk_lbl(header, "00:00:00", &lv_font_montserrat_14, 0xFFFFFF);
+    if (s_time_lbl) lv_obj_align(s_time_lbl, LV_ALIGN_LEFT_MID, 4, 0);
 
-        s_bat_lbl = mk_lbl(header, "BAT:--", &lv_font_montserrat_14, 0xFFFFFF);
-        if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -4, 0);
+    s_bat_lbl = mk_lbl(header, "BAT:--", &lv_font_montserrat_14, 0xFFFFFF);
+    if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -4, 0);
 
-        s_status_lbl = mk_lbl(header, "...", &lv_font_montserrat_14, 0xB0BEC5);
-        if (s_status_lbl) lv_obj_align(s_status_lbl, LV_ALIGN_RIGHT_MID, -56, 0);
+    // ── 底部栏 (持久) ──
+    lv_obj_t *footer = lv_obj_create(s_scr);
+    lv_obj_set_pos(footer, 0, 290);
+    lv_obj_set_size(footer, 240, 30);
+    lv_obj_set_style_bg_color(footer, lv_color_hex(c->footer_bg), 0);
+    lv_obj_set_style_radius(footer, 0, 0);
+    lv_obj_set_style_border_width(footer, 0, 0);
+    lv_obj_set_style_pad_all(footer, 4, 0);
+    lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
-        // ── 底部栏（创建一次，持久存在） ──
-        lv_obj_t *footer = lv_obj_create(s_scr);
-        lv_obj_set_pos(footer, 0, 290);
-        lv_obj_set_size(footer, 240, 30);
-        lv_obj_set_style_bg_color(footer, lv_color_hex(c->footer_bg), 0);
-        lv_obj_set_style_radius(footer, 0, 0);
-        lv_obj_set_style_border_width(footer, 0, 0);
-        lv_obj_set_style_pad_all(footer, 4, 0);
-        lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, &lv_font_montserrat_14, 0xFFFFFF);
+    if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
 
-        lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, &lv_font_montserrat_14, 0xFFFFFF);
-        if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
+    char pg[16];
+    snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
+    s_pg_lbl = mk_lbl(footer, pg, &lv_font_montserrat_14, 0xFFFFFF);
+    if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
 
-        // 页码标签由框架通过 ui_monitor_set_page_ind() 更新
-        char pg[16];
-        snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
-        lv_obj_t *pg_lbl = mk_lbl(footer, pg, &lv_font_montserrat_14, 0xFFFFFF);
-        if (pg_lbl) lv_obj_align(pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
+    // ── 内容区域容器 ──
+    s_content_area = lv_obj_create(s_scr);
+    lv_obj_set_pos(s_content_area, 0, 0);
+    lv_obj_set_size(s_content_area, 240, 320);
+    lv_obj_set_style_bg_opa(s_content_area, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(s_content_area, 0, 0);
+    lv_obj_set_style_pad_all(s_content_area, 0, 0);
+    lv_obj_remove_flag(s_content_area, LV_OBJ_FLAG_SCROLLABLE);
 
-        // ── 内容区域容器（翻页时只清理这里） ──
-        s_content_area = lv_obj_create(s_scr);
-        lv_obj_set_pos(s_content_area, 0, 0);
-        lv_obj_set_size(s_content_area, 240, 320);
-        lv_obj_set_style_bg_opa(s_content_area, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(s_content_area, 0, 0);
-        lv_obj_set_style_pad_all(s_content_area, 0, 0);
-        lv_obj_remove_flag(s_content_area, LV_OBJ_FLAG_SCROLLABLE);
-    }
-
-    // ── 每次 build: 清空内容区指针并重建 ──
+    // ── 创建两页卡片 (都创建, 翻页只切换可见性) ──
     memset(s_lbl, 0, sizeof(s_lbl));
     memset(s_ams_lbl, 0, sizeof(s_ams_lbl));
-    s_bar = NULL;
-    s_bar_idx = -1;
+    build_page0();
+    build_page1();
 
-    if (s_content_area) lv_obj_clean(s_content_area);
-
-    // 构建当前页内容
-    if (s_page == 1) build_page1();
-    else             build_page0();
+    // 隐藏非当前页
+    if (s_card[0]) {
+        if (s_page != 0) lv_obj_add_flag(s_card[0], LV_OBJ_FLAG_HIDDEN);
+        else             lv_obj_clear_flag(s_card[0], LV_OBJ_FLAG_HIDDEN);
+    }
+    if (s_card[1]) {
+        if (s_page != 1) lv_obj_add_flag(s_card[1], LV_OBJ_FLAG_HIDDEN);
+        else             lv_obj_clear_flag(s_card[1], LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 // ---------------------------------------------------------------------------
-// 更新
+// 更新 (每秒调用)
 // ---------------------------------------------------------------------------
 void style_bambu_update(void) {
     bambu_state_t *st = &g_bambu_state;
     const ui_theme_colors_t *c = ui_theme_get_colors();
     char buf[48];
 
-    // 更新连接状态
-    if (s_status_lbl) {
-        if (bambu_mqtt_connected()) {
-            lv_label_set_text(s_status_lbl, "Online");
-            lv_obj_set_style_text_color(s_status_lbl, lv_color_hex(c->success), 0);
-        } else {
-            lv_label_set_text(s_status_lbl, "Offline");
-            lv_obj_set_style_text_color(s_status_lbl, lv_color_hex(c->error), 0);
-        }
+    // 更新运行时间
+    s_uptime_sec++;
+    if (s_time_lbl) {
+        int h = s_uptime_sec / 3600;
+        int m = (s_uptime_sec % 3600) / 60;
+        int s = s_uptime_sec % 60;
+        snprintf(buf, sizeof(buf), "%02d:%02d:%02d", h, m, s);
+        lv_label_set_text(s_time_lbl, buf);
     }
 
-    // 更新电池电量
+    // 更新电池
     if (s_bat_lbl) {
         int soc = bsp_battery_soc();
-        if (soc >= 0) {
-            snprintf(buf, sizeof(buf), "BAT:%d%%", soc);
-        } else {
-            snprintf(buf, sizeof(buf), "BAT:--");
-        }
+        if (soc >= 0) snprintf(buf, sizeof(buf), "BAT:%d%%", soc);
+        else          snprintf(buf, sizeof(buf), "BAT:--");
         lv_label_set_text(s_bat_lbl, buf);
     }
 
-    // 更新 page0 组件
-    for (int i = 0; i < s_order_len && i < 6; i++) {
-        if (!s_lbl[i]) continue;
-        int cmp = s_order[i];
+    // 更新 page0 组件 (仅当前页可见时更新)
+    if (s_page == 0) {
+        for (int i = 0; i < s_order_len && i < 6; i++) {
+            if (!s_lbl[i]) continue;
+            int cmp = s_order[i];
 
-        switch (cmp) {
-            case CMP_PERCENT:
-                snprintf(buf, sizeof(buf), "%d%%", st->mc_percent);
-                lv_label_set_text(s_lbl[i], buf);
-                if (s_bar) lv_bar_set_value(s_bar, st->mc_percent, LV_ANIM_ON);
-                break;
-            case CMP_LAYER:
-                snprintf(buf, sizeof(buf), L_LAYER " %d/%d", st->layer_num, st->total_layer);
-                lv_label_set_text(s_lbl[i], buf);
-                break;
-            case CMP_NOZZLE:
-                snprintf(buf, sizeof(buf), L_NOZZLE " %d/%d°C",
-                         (int)st->nozzle_temp, (int)st->nozzle_target);
-                lv_label_set_text(s_lbl[i], buf);
-                break;
-            case CMP_BED:
-                snprintf(buf, sizeof(buf), L_BED " %d/%d°C",
-                         (int)st->bed_temp, (int)st->bed_target);
-                lv_label_set_text(s_lbl[i], buf);
-                break;
-            case CMP_CHAMBER:
-                snprintf(buf, sizeof(buf), L_CHAMBER " %d°C", (int)st->chamber_temp);
-                lv_label_set_text(s_lbl[i], buf);
-                break;
-            case CMP_REMAIN:
-                if (st->mc_remaining > 0) {
-                    int h = st->mc_remaining / 60;
-                    int m = st->mc_remaining % 60;
-                    if (h > 0)
-                        snprintf(buf, sizeof(buf), L_REMAIN " %d" L_HOUR "%d" L_MIN, h, m);
-                    else
-                        snprintf(buf, sizeof(buf), L_REMAIN " %d" L_MIN, m);
-                } else {
-                    snprintf(buf, sizeof(buf), L_REMAIN " --");
+            switch (cmp) {
+                case CMP_PERCENT:
+                    snprintf(buf, sizeof(buf), "%d%%", st->mc_percent);
+                    lv_label_set_text(s_lbl[i], buf);
+                    if (s_bar) lv_bar_set_value(s_bar, st->mc_percent, LV_ANIM_ON);
+                    break;
+                case CMP_LAYER:
+                    snprintf(buf, sizeof(buf), L_LAYER " %d/%d",
+                             st->layer_num, st->total_layer);
+                    lv_label_set_text(s_lbl[i], buf);
+                    break;
+                case CMP_NOZZLE:
+                    snprintf(buf, sizeof(buf), L_NOZZLE " %d/%d°C",
+                             (int)st->nozzle_temp, (int)st->nozzle_target);
+                    lv_label_set_text(s_lbl[i], buf);
+                    break;
+                case CMP_BED:
+                    snprintf(buf, sizeof(buf), L_BED " %d/%d°C",
+                             (int)st->bed_temp, (int)st->bed_target);
+                    lv_label_set_text(s_lbl[i], buf);
+                    break;
+                case CMP_CHAMBER:
+                    snprintf(buf, sizeof(buf), L_CHAMBER " %d°C",
+                             (int)st->chamber_temp);
+                    lv_label_set_text(s_lbl[i], buf);
+                    break;
+                case CMP_REMAIN:
+                    if (st->mc_remaining > 0) {
+                        int h = st->mc_remaining / 60;
+                        int m = st->mc_remaining % 60;
+                        if (h > 0)
+                            snprintf(buf, sizeof(buf), L_REMAIN " %d" L_HOUR "%d" L_MIN, h, m);
+                        else
+                            snprintf(buf, sizeof(buf), L_REMAIN " %d" L_MIN, m);
+                    } else {
+                        snprintf(buf, sizeof(buf), L_REMAIN " --");
+                    }
+                    lv_label_set_text(s_lbl[i], buf);
+                    break;
+                case CMP_STATE: {
+                    // MQTT 未连接时显示 Connecting, 否则显示打印状态
+                    if (!bambu_mqtt_connected()) {
+                        lv_label_set_text(s_lbl[i], L_CONNECTING);
+                        lv_obj_set_style_text_color(s_lbl[i],
+                            lv_color_hex(c->error), 0);
+                    } else {
+                        const char *txt = state_text(st->state);
+                        lv_label_set_text(s_lbl[i], txt);
+                        lv_obj_set_style_text_color(s_lbl[i],
+                            lv_color_hex(state_color(st->state, c)), 0);
+                    }
+                    break;
                 }
-                lv_label_set_text(s_lbl[i], buf);
-                break;
-            case CMP_STATE: {
-                const char *txt = state_text(st->state);
-                lv_label_set_text(s_lbl[i], txt);
-                lv_obj_set_style_text_color(s_lbl[i],
-                    lv_color_hex(state_color(st->state, c)), 0);
-                break;
+                case CMP_SPEED:
+                    snprintf(buf, sizeof(buf), L_SPEED " %d %d%%",
+                             st->spd_lvl, st->spd_mag);
+                    lv_label_set_text(s_lbl[i], buf);
+                    break;
             }
-            case CMP_SPEED:
-                snprintf(buf, sizeof(buf), L_SPEED " %d %d%%", st->spd_lvl, st->spd_mag);
-                lv_label_set_text(s_lbl[i], buf);
-                break;
         }
     }
 
-    // 更新 AMS page1
+    // 更新 AMS page1 (仅当前页可见时更新)
     if (s_page == 1) {
         for (int i = 0; i < 4 && i < st->ams_count; i++) {
             if (!s_ams_lbl[i]) continue;
@@ -386,7 +398,7 @@ void style_bambu_update(void) {
 }
 
 // ---------------------------------------------------------------------------
-// 翻页
+// 翻页 (显示/隐藏切换, 不 destroy/rebuild)
 // ---------------------------------------------------------------------------
 int style_bambu_page_count(void) { return s_total_pages; }
 int style_bambu_current_page(void) { return s_page; }
@@ -394,11 +406,35 @@ int style_bambu_current_page(void) { return s_page; }
 void style_bambu_next_page(void) {
     s_page = (s_page + 1) % s_total_pages;
     ESP_LOGI(TAG, "翻页 -> page %d/%d", s_page + 1, s_total_pages);
-    rebuild_page();
+
+    // 切换卡片可见性
+    for (int i = 0; i < 2; i++) {
+        if (!s_card[i]) continue;
+        if (i == s_page) lv_obj_clear_flag(s_card[i], LV_OBJ_FLAG_HIDDEN);
+        else             lv_obj_add_flag(s_card[i], LV_OBJ_FLAG_HIDDEN);
+    }
+
+    // 更新底部栏页码
+    if (s_pg_lbl) {
+        char pg[16];
+        snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
+        lv_label_set_text(s_pg_lbl, pg);
+    }
 }
 
 void style_bambu_prev_page(void) {
     s_page = (s_page - 1 + s_total_pages) % s_total_pages;
     ESP_LOGI(TAG, "翻页 -> page %d/%d", s_page + 1, s_total_pages);
-    rebuild_page();
+
+    for (int i = 0; i < 2; i++) {
+        if (!s_card[i]) continue;
+        if (i == s_page) lv_obj_clear_flag(s_card[i], LV_OBJ_FLAG_HIDDEN);
+        else             lv_obj_add_flag(s_card[i], LV_OBJ_FLAG_HIDDEN);
+    }
+
+    if (s_pg_lbl) {
+        char pg[16];
+        snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
+        lv_label_set_text(s_pg_lbl, pg);
+    }
 }
