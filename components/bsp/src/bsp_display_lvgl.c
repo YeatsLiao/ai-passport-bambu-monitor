@@ -24,7 +24,7 @@ lv_display_t *bsp_lvgl_init(void) {
     const lvgl_port_display_cfg_t dc = {
         .panel_handle = bsp_display_panel(),
         .io_handle    = bsp_display_io(),
-        .buffer_size   = (uint32_t)BSP_LCD_W * 20,
+        .buffer_size   = (uint32_t)BSP_LCD_W * 10,
         .double_buffer = false,
         .hres = BSP_LCD_W, .vres = BSP_LCD_H,
         .rotation = { .swap_xy = false, .mirror_x = false, .mirror_y = false },
