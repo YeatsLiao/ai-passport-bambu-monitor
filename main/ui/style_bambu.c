@@ -12,6 +12,7 @@
 #include "esp_log.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <time.h>
 
 static const char *TAG __attribute__((unused)) = "style_bambu";
@@ -52,6 +53,7 @@ static int s_bar_idx = -1;
 
 // Page 1 AMS 标签 (索引 0-3: AMS 料槽, 4: 外挂料槽 Ext)
 static lv_obj_t *s_ams_lbl[5];
+static lv_obj_t *s_ams_swatch[5];   // 颜色色块 (颜色来自 MQTT tray_color)
 
 // 标题栏标签
 static lv_obj_t *s_time_lbl = NULL;   // 实时时间 (NTP 同步, HH:MM)
@@ -205,8 +207,21 @@ static void build_page1(void) {
 
     mk_lbl(card, L_AMS, &lv_font_montserrat_20, c->accent);
     for (int i = 0; i < 5; i++) {
+        // 色块 (颜色在 update 中由 MQTT 推送的 tray_color 填充)
+        lv_obj_t *sw = lv_obj_create(card);
+        if (sw) {
+            lv_obj_set_size(sw, 14, 14);
+            lv_obj_set_pos(sw, 0, 36 + i * 26 + 3);
+            lv_obj_remove_flag(sw, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_style_radius(sw, 3, 0);
+            lv_obj_set_style_border_width(sw, 1, 0);
+            lv_obj_set_style_border_color(sw, lv_color_hex(c->border), 0);
+            lv_obj_set_style_bg_color(sw, lv_color_hex(0x888888), 0);
+        }
+        s_ams_swatch[i] = sw;
+
         s_ams_lbl[i] = mk_lbl(card, L_EMPTY, &lv_font_montserrat_14, c->text_secondary);
-        if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 0, 36 + i * 26);
+        if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 20, 36 + i * 26);
     }
 }
 
@@ -272,6 +287,7 @@ void style_bambu_build(void) {
     // ── 创建两页卡片 (都创建, 翻页只切换可见性) ──
     memset(s_lbl, 0, sizeof(s_lbl));
     memset(s_ams_lbl, 0, sizeof(s_ams_lbl));
+    memset(s_ams_swatch, 0, sizeof(s_ams_swatch));
     build_page0();
     build_page1();
 
@@ -400,6 +416,17 @@ void style_bambu_update(void) {
             lv_label_set_text(s_ams_lbl[i], buf);
             lv_obj_set_style_text_color(s_ams_lbl[i],
                 lv_color_hex(t->active ? c->accent : c->text_secondary), 0);
+
+            // 色块上色: tray_color 为 RRGGBBAA hex 字符串, 取前 6 位
+            if (s_ams_swatch[i]) {
+                uint32_t rgb = 0x888888;
+                if (strlen(t->color) >= 6) {
+                    char rgbstr[7] = {0};
+                    memcpy(rgbstr, t->color, 6);
+                    rgb = (uint32_t)strtol(rgbstr, NULL, 16);
+                }
+                lv_obj_set_style_bg_color(s_ams_swatch[i], lv_color_hex(rgb), 0);
+            }
         }
     }
 }
