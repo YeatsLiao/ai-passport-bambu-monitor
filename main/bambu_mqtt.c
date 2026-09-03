@@ -178,32 +178,47 @@ static void parse_print_json(cJSON *print_obj) {
     }
 
     // AMS 托盘信息
+    // 真实推送结构: print.ams.ams[unit].tray[] (AMS 对象内嵌套 AMS 单元数组)
     cJSON *ams = cJSON_GetObjectItem(print_obj, "ams");
     if (ams) {
-        cJSON *tray_arr = cJSON_GetObjectItem(ams, "tray");
-        if (tray_arr && cJSON_IsArray(tray_arr)) {
-            int tray_count = cJSON_GetArraySize(tray_arr);
-            if (tray_count > BAMBU_AMS_COUNT * BAMBU_AMS_TRAY_COUNT)
-                tray_count = BAMBU_AMS_COUNT * BAMBU_AMS_TRAY_COUNT;
-            st->ams_count = tray_count;
-            for (int i = 0; i < tray_count; i++) {
-                cJSON *tray = cJSON_GetArrayItem(tray_arr, i);
-                if (!tray) continue;
-                bambu_ams_tray_t *t = &st->trays[i];
-                cJSON *color = cJSON_GetObjectItem(tray, "cols");
-                if (color && color->valuestring)
-                    strncpy(t->color, color->valuestring, sizeof(t->color) - 1);
-                cJSON *type = cJSON_GetObjectItem(tray, "tray_type");
-                if (type && type->valuestring)
-                    strncpy(t->type, type->valuestring, sizeof(t->type) - 1);
-                cJSON *remain = cJSON_GetObjectItem(tray, "remain");
-                if (remain) t->remain = (float)remain->valuedouble;
-                cJSON *tag = cJSON_GetObjectItem(tray, "tag");
-                if (tag) t->tag = tag->valueint;
-            }
-        }
+        // tray_now 是字符串 ("0"~"3"), 不能直接用 valueint
         cJSON *ams_tray = cJSON_GetObjectItem(ams, "tray_now");
-        if (ams_tray) st->active_tray = ams_tray->valueint;
+        if (ams_tray && ams_tray->valuestring)
+            st->active_tray = atoi(ams_tray->valuestring);
+
+        cJSON *unit_arr = cJSON_GetObjectItem(ams, "ams");
+        if (unit_arr && cJSON_IsArray(unit_arr)) {
+            int idx = 0;
+            int max_trays = BAMBU_AMS_COUNT * BAMBU_AMS_TRAY_COUNT;
+            int unit_count = cJSON_GetArraySize(unit_arr);
+            for (int u = 0; u < unit_count && idx < max_trays; u++) {
+                cJSON *unit = cJSON_GetArrayItem(unit_arr, u);
+                if (!unit) continue;
+                cJSON *tray_arr = cJSON_GetObjectItem(unit, "tray");
+                if (!tray_arr || !cJSON_IsArray(tray_arr)) continue;
+                int tray_count = cJSON_GetArraySize(tray_arr);
+                for (int i = 0; i < tray_count && idx < max_trays; i++) {
+                    cJSON *tray = cJSON_GetArrayItem(tray_arr, i);
+                    if (!tray) continue;
+                    bambu_ams_tray_t *t = &st->trays[idx++];
+                    cJSON *color = cJSON_GetObjectItem(tray, "cols");
+                    if (color && color->valuestring)
+                        strncpy(t->color, color->valuestring, sizeof(t->color) - 1);
+                    cJSON *type = cJSON_GetObjectItem(tray, "tray_type");
+                    if (type && type->valuestring)
+                        strncpy(t->type, type->valuestring, sizeof(t->type) - 1);
+                    cJSON *remain = cJSON_GetObjectItem(tray, "remain");
+                    if (remain) t->remain = (float)remain->valuedouble;
+                    cJSON *tid = cJSON_GetObjectItem(tray, "id");
+                    if (tid && tid->valuestring)
+                        t->tag = atoi(tid->valuestring);   // id 是字符串 ("0"~"3")
+                    else if (tid)
+                        t->tag = tid->valueint;
+                    t->active = (t->tag == st->active_tray);
+                }
+            }
+            st->ams_count = idx;
+        }
     }
 
     st->last_update_ms = esp_timer_get_time() / 1000;
