@@ -60,6 +60,7 @@ static lv_obj_t *make_label(lv_obj_t *parent, const char *text,
     return lbl;
 }
 
+__attribute__((unused))
 static lv_obj_t *make_panel(lv_obj_t *parent, int x, int y, int w, int h) {
     const ui_theme_colors_t *c = ui_theme_get_colors();
     lv_obj_t *panel = lv_obj_create(parent);
@@ -510,7 +511,7 @@ static void build_page2_content(void) {
 
 static void update_page_indicator(void) {
     if (s_page_indicator) {
-        char buf[8];
+        char buf[16];
         snprintf(buf, sizeof(buf), "%d/%d", s_card_page + 1, CARD_PAGE_COUNT);
         lv_label_set_text(s_page_indicator, buf);
     }
