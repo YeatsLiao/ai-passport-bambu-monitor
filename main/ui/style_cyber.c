@@ -398,18 +398,12 @@ void style_cyber_update(void) {
             }
             lv_label_set_text(s_ams_lbl[i], buf);
 
-            // 色片上色 + 当前料槽发光高亮
+            // 色片按实时数据渲染 (透明料空心) + 当前料槽发光高亮
             if (s_ams_chip[i]) {
-                uint32_t rgb = 0x888888;
-                if (strlen(t->color) >= 6) {
-                    char rgbstr[7] = {0};
-                    memcpy(rgbstr, t->color, 6);
-                    rgb = (uint32_t)strtoul(rgbstr, NULL, 16);
-                }
-                lv_obj_set_style_bg_color(s_ams_chip[i], lv_color_hex(rgb), 0);
+                ui_theme_tray_swatch(s_ams_chip[i], t);
                 bool active = (i < 4) ? t->active : (st->active_tray >= 4);
                 lv_obj_set_style_shadow_color(s_ams_chip[i],
-                    lv_color_hex(active ? c->accent : rgb), 0);
+                    active ? lv_color_hex(c->accent) : ui_theme_hex_color(t->color), 0);
                 lv_obj_set_style_shadow_opa(s_ams_chip[i],
                     active ? LV_OPA_60 : LV_OPA_30, 0);
             }

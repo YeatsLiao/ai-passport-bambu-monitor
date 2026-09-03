@@ -355,16 +355,9 @@ void style_neon_update(void) {
             lv_obj_set_style_text_color(s_ams_lbl[i],
                 lv_color_hex(t->active ? c->accent : c->text_secondary), 0);
 
-            // 色块上色: tray_color 为 RRGGBBAA hex 字符串, 取前 6 位
-            if (s_ams_swatch[i]) {
-                uint32_t rgb = 0x888888;
-                if (strlen(t->color) >= 6) {
-                    char rgbstr[7] = {0};
-                    memcpy(rgbstr, t->color, 6);
-                    rgb = (uint32_t)strtol(rgbstr, NULL, 16);
-                }
-                lv_obj_set_style_bg_color(s_ams_swatch[i], lv_color_hex(rgb), 0);
-            }
+            // 色块按 MQTT 实时数据渲染 (透明料画空心描边)
+            if (s_ams_swatch[i])
+                ui_theme_tray_swatch(s_ams_swatch[i], t);
         }
     }
 }

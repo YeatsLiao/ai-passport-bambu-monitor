@@ -22,6 +22,7 @@ typedef struct {
     float  remain;         // 剩余量 mm
     int    tag;            // 托盘标签号
     bool   active;         // 是否在使用
+    bool   translucent;    // 透明/透光耗材 (拓竹用 00000000 色号+sub_brands 含 Translucent)
 } bambu_ams_tray_t;
 
 #define BAMBU_AMS_TRAY_COUNT 4

@@ -204,3 +204,24 @@ lv_color_t ui_theme_contrast_text(uint32_t rgb) {
     float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
     return (lum > 0.5f) ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
 }
+
+void ui_theme_tray_swatch(lv_obj_t *swatch, const bambu_ams_tray_t *t) {
+    if (!swatch || !t) return;
+    if (t->translucent) {
+        // 透明/透光耗材: 空心描边 (淡灰框 + 微透底色), 不误显示为黑色
+        lv_obj_set_style_bg_color(swatch, lv_color_hex(0xCCCCCC), 0);
+        lv_obj_set_style_bg_opa(swatch, LV_OPA_20, 0);
+        lv_obj_set_style_border_width(swatch, 2, 0);
+        lv_obj_set_style_border_color(swatch, lv_color_hex(0xCCCCCC), 0);
+    } else {
+        // 常规耗材: 填充 tray_color 前 6 位 RGB
+        uint32_t rgb = 0x888888;
+        if (strlen(t->color) >= 6) {
+            char buf[7] = {0};
+            memcpy(buf, t->color, 6);
+            rgb = (uint32_t)strtoul(buf, NULL, 16);
+        }
+        lv_obj_set_style_bg_opa(swatch, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(swatch, lv_color_hex(rgb), 0);
+    }
+}

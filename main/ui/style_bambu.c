@@ -408,11 +408,20 @@ void style_bambu_update(void) {
                 continue;
             }
 
-            // 有料: 背景 = 耗材颜色, 文字按亮度自动黑白
-            lv_obj_set_style_bg_color(s_ams_box[i], lv_color_hex(rgb), 0);
-            lv_color_t tc = ui_theme_contrast_text(rgb);
-            lv_obj_set_style_text_color(s_ams_type[i], tc, 0);
-            lv_obj_set_style_text_color(s_ams_rem[i], tc, 0);
+            // 有料: 背景 = 耗材颜色 (透明料画空心), 文字按亮度自动黑白
+            if (t->translucent) {
+                lv_obj_set_style_bg_color(s_ams_box[i], lv_color_hex(c->border), 0);
+                lv_obj_set_style_text_color(s_ams_type[i],
+                    lv_color_hex(c->text_primary), 0);
+                if (s_ams_rem[i])
+                    lv_obj_set_style_text_color(s_ams_rem[i],
+                        lv_color_hex(c->text_secondary), 0);
+            } else {
+                lv_obj_set_style_bg_color(s_ams_box[i], lv_color_hex(rgb), 0);
+                lv_color_t tc = ui_theme_contrast_text(rgb);
+                lv_obj_set_style_text_color(s_ams_type[i], tc, 0);
+                if (s_ams_rem[i]) lv_obj_set_style_text_color(s_ams_rem[i], tc, 0);
+            }
             lv_label_set_text(s_ams_type[i], t->type);
             if (s_ams_rem[i]) {
                 snprintf(buf, sizeof(buf), "%d%%", (int)t->remain);

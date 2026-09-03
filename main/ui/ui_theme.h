@@ -3,6 +3,7 @@
 
 #include "lvgl.h"
 #include "../config.h"
+#include "../bambu_state.h"
 
 typedef struct {
     uint32_t bg;            // 背景色
@@ -29,3 +30,5 @@ const char *ui_theme_style_name(void);
 lv_color_t ui_theme_hex_color(const char *hex);
 // 亮度对比度: 亮背景返黑字, 暗背景返白字 (移植自 BambuHelper 算法)
 lv_color_t ui_theme_contrast_text(uint32_t rgb);
+// 色块外观按 MQTT 实时数据渲染: 透明料画空心描边, 其余填充真实颜色 (无效时灰色兜底)
+void ui_theme_tray_swatch(lv_obj_t *swatch, const bambu_ams_tray_t *t);

@@ -128,6 +128,12 @@ static void parse_tray_obj(cJSON *tray, bambu_ams_tray_t *t, int active_tray) {
     }
     if (item && item->valuestring)
         strncpy(t->color, item->valuestring, sizeof(t->color) - 1);
+    // 透明/透光耗材识别: 拓竹用 "00000000" (黑+alpha0) 表示无色透明料,
+    // 且 tray_sub_brands 通常含 "Translucent" (如 PETG Translucent)
+    cJSON *sub = cJSON_GetObjectItem(tray, "tray_sub_brands");
+    if ((sub && sub->valuestring && strstr(sub->valuestring, "ransluc")) ||
+        (item && item->valuestring && strncmp(item->valuestring, "000000", 6) == 0))
+        t->translucent = true;
     item = cJSON_GetObjectItem(tray, "tray_type");
     if (item && item->valuestring)
         strncpy(t->type, item->valuestring, sizeof(t->type) - 1);

@@ -101,17 +101,6 @@ static uint32_t heat_led_color(float cur, float target, const ui_theme_colors_t 
     return c->text_secondary;
 }
 
-// tray_color "RRGGBBAA" -> uint32_t RGB
-static uint32_t tray_rgb(const char *hex) {
-    uint32_t rgb = 0x888888;
-    if (hex && strlen(hex) >= 6) {
-        char buf[7] = {0};
-        memcpy(buf, hex, 6);
-        rgb = (uint32_t)strtoul(buf, NULL, 16);
-    }
-    return rgb;
-}
-
 // ---------------------------------------------------------------------------
 // Page 0: LED 段式进度条 + 大字百分比 + 数据行网格
 // ---------------------------------------------------------------------------
@@ -420,8 +409,7 @@ void style_industrial_update(void) {
             lv_label_set_text(s_ams_lbl[i], buf);
 
             if (s_ams_chip[i])
-                lv_obj_set_style_bg_color(s_ams_chip[i],
-                    lv_color_hex(tray_rgb(t->color)), 0);
+                ui_theme_tray_swatch(s_ams_chip[i], t);
             if (s_ams_bar[i])
                 lv_bar_set_value(s_ams_bar[i], (int32_t)t->remain, LV_ANIM_OFF);
         }
