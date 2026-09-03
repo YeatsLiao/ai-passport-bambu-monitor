@@ -24,3 +24,8 @@ typedef struct {
 
 const ui_theme_colors_t *ui_theme_get_colors(void);
 const char *ui_theme_style_name(void);
+
+// 颜色工具: "RRGGBBAA"/"RRGGBB" hex 字符串 -> lv_color (来自 MQTT tray_color)
+lv_color_t ui_theme_hex_color(const char *hex);
+// 亮度对比度: 亮背景返黑字, 暗背景返白字 (移植自 BambuHelper 算法)
+lv_color_t ui_theme_contrast_text(uint32_t rgb);

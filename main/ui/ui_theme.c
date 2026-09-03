@@ -2,6 +2,8 @@
 // 只编译当前选中风格的配色，避免 unused-const-variable 警告
 #include "ui_theme.h"
 #include "ui_lang.h"
+#include <string.h>
+#include <stdlib.h>
 
 #if CFG_UI_STYLE == STYLE_BAMBU
 // 风格1: 拓竹原厂工业风 — 深蓝标题 + 白卡片 + 绿进度
@@ -178,4 +180,27 @@ const char *ui_theme_style_name(void) {
 #else
     return "Unknown";
 #endif
+}
+
+// ---------------------------------------------------------------------------
+// 颜色工具 (多个风格共用)
+// ---------------------------------------------------------------------------
+lv_color_t ui_theme_hex_color(const char *hex) {
+    // tray_color 格式 "RRGGBBAA" 或 "RRGGBB", 取前 6 位
+    uint32_t rgb = 0x888888;                       // 无效时灰色兜底
+    if (hex && strlen(hex) >= 6) {
+        char buf[7] = {0};
+        memcpy(buf, hex, 6);
+        rgb = (uint32_t)strtol(buf, NULL, 16);
+    }
+    return lv_color_hex(rgb);
+}
+
+lv_color_t ui_theme_contrast_text(uint32_t rgb) {
+    // sRGB 相对亮度 (移植自 BambuHelper contrastTextColor565)
+    float r = ((rgb >> 16) & 0xFF) / 255.0f;
+    float g = ((rgb >>  8) & 0xFF) / 255.0f;
+    float b = ( rgb        & 0xFF) / 255.0f;
+    float lum = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+    return (lum > 0.5f) ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
 }
