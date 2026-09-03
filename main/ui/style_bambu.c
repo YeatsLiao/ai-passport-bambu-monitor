@@ -50,8 +50,8 @@ static lv_obj_t *s_lbl[6];
 static lv_obj_t *s_bar = NULL;
 static int s_bar_idx = -1;
 
-// Page 1 AMS 标签
-static lv_obj_t *s_ams_lbl[4];
+// Page 1 AMS 标签 (索引 0-3: AMS 料槽, 4: 外挂料槽 Ext)
+static lv_obj_t *s_ams_lbl[5];
 
 // 标题栏标签
 static lv_obj_t *s_time_lbl = NULL;   // 实时时间 (NTP 同步, HH:MM)
@@ -204,7 +204,7 @@ static void build_page1(void) {
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
     mk_lbl(card, L_AMS, &lv_font_montserrat_20, c->accent);
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         s_ams_lbl[i] = mk_lbl(card, L_EMPTY, &lv_font_montserrat_14, c->text_secondary);
         if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 0, 36 + i * 26);
     }
@@ -382,16 +382,20 @@ void style_bambu_update(void) {
         }
     }
 
-    // 更新 AMS page1 (仅当前页可见时更新)
+    // 更新 AMS page1 (仅当前页可见时更新); 第 5 行为外挂料槽 Ext
     if (s_page == 1) {
-        for (int i = 0; i < 4 && i < st->ams_count; i++) {
+        for (int i = 0; i < 5; i++) {
             if (!s_ams_lbl[i]) continue;
-            bambu_ams_tray_t *t = &st->trays[i];
+            if (i < 4 && i >= st->ams_count) continue;   // 未上报的料槽保持原样
+            bambu_ams_tray_t *t = (i < 4) ? &st->trays[i] : &st->vt_tray;
+            char name[8];
+            if (i < 4) snprintf(name, sizeof(name), "#%d", i + 1);
+            else       snprintf(name, sizeof(name), "Ext");
             if (t->type[0]) {
-                snprintf(buf, sizeof(buf), "#%d %s %s %d%%",
-                         i + 1, t->type, t->color, (int)t->remain);
+                snprintf(buf, sizeof(buf), "%s %s %s %d%%",
+                         name, t->type, t->color, (int)t->remain);
             } else {
-                snprintf(buf, sizeof(buf), "#%d %s", i + 1, L_EMPTY);
+                snprintf(buf, sizeof(buf), "%s %s", name, L_EMPTY);
             }
             lv_label_set_text(s_ams_lbl[i], buf);
             lv_obj_set_style_text_color(s_ams_lbl[i],

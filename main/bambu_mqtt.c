@@ -116,6 +116,25 @@ static esp_err_t wifi_connect(void) {
 // ---------------------------------------------------------------------------
 // MQTT 消息回调 —— JSON 解析
 // ---------------------------------------------------------------------------
+// 解析单个托盘对象 (AMS 料槽和外挂料槽 vt_tray 共用)
+static void parse_tray_obj(cJSON *tray, bambu_ams_tray_t *t, int active_tray) {
+    if (!tray || !t) return;
+    cJSON *item = cJSON_GetObjectItem(tray, "cols");
+    if (item && item->valuestring)
+        strncpy(t->color, item->valuestring, sizeof(t->color) - 1);
+    item = cJSON_GetObjectItem(tray, "tray_type");
+    if (item && item->valuestring)
+        strncpy(t->type, item->valuestring, sizeof(t->type) - 1);
+    item = cJSON_GetObjectItem(tray, "remain");
+    if (item) t->remain = (float)item->valuedouble;
+    item = cJSON_GetObjectItem(tray, "id");
+    if (item && item->valuestring)
+        t->tag = atoi(item->valuestring);   // id 是字符串 ("0"~"3")
+    else if (item)
+        t->tag = item->valueint;
+    t->active = (t->tag == active_tray);
+}
+
 static void parse_print_json(cJSON *print_obj) {
     bambu_state_t *st = &g_bambu_state;
     cJSON *item;
@@ -201,23 +220,18 @@ static void parse_print_json(cJSON *print_obj) {
                     cJSON *tray = cJSON_GetArrayItem(tray_arr, i);
                     if (!tray) continue;
                     bambu_ams_tray_t *t = &st->trays[idx++];
-                    cJSON *color = cJSON_GetObjectItem(tray, "cols");
-                    if (color && color->valuestring)
-                        strncpy(t->color, color->valuestring, sizeof(t->color) - 1);
-                    cJSON *type = cJSON_GetObjectItem(tray, "tray_type");
-                    if (type && type->valuestring)
-                        strncpy(t->type, type->valuestring, sizeof(t->type) - 1);
-                    cJSON *remain = cJSON_GetObjectItem(tray, "remain");
-                    if (remain) t->remain = (float)remain->valuedouble;
-                    cJSON *tid = cJSON_GetObjectItem(tray, "id");
-                    if (tid && tid->valuestring)
-                        t->tag = atoi(tid->valuestring);   // id 是字符串 ("0"~"3")
-                    else if (tid)
-                        t->tag = tid->valueint;
-                    t->active = (t->tag == st->active_tray);
+                    memset(t, 0, sizeof(*t));
+                    parse_tray_obj(tray, t, st->active_tray);
                 }
             }
             st->ams_count = idx;
+        }
+
+        // 外挂料槽 (Ext / 虚拟托盘, 位于 print.vt_tray)
+        cJSON *vt = cJSON_GetObjectItem(print_obj, "vt_tray");
+        if (vt) {
+            memset(&st->vt_tray, 0, sizeof(st->vt_tray));
+            parse_tray_obj(vt, &st->vt_tray, st->active_tray);
         }
     }
 

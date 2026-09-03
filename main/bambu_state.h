@@ -58,6 +58,7 @@ typedef struct {
     // AMS
     int   ams_count;
     bambu_ams_tray_t trays[BAMBU_AMS_COUNT * BAMBU_AMS_TRAY_COUNT];
+    bambu_ams_tray_t vt_tray;     // 外挂料槽 (Ext, 虚拟托盘, print.vt_tray)
     int   active_tray;      // 当前使用的托盘编号
 
     // 文件
