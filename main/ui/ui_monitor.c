@@ -77,7 +77,7 @@ static lv_obj_t *s_page_ind_lbl  = NULL;   // 底部栏页码标签
 // ---------------------------------------------------------------------------
 void rebuild_page(void) {
     if (!s_content_area) return;
-    lv_obj_clean(s_content_area);     // 只删内容子对象
+    // 风格 build 函数内部负责清理 s_content_area
     STYLE_BUILD();
 
     // 更新底部栏页码
@@ -90,6 +90,11 @@ void rebuild_page(void) {
     ESP_LOGI(TAG, "页面已重建 (style=%s, page=%d/%d)",
              ui_theme_style_name(),
              STYLE_CUR_PAGE() + 1, STYLE_PAGE_COUNT());
+}
+
+// 风格文件通过此函数设置底部栏页码文本
+void ui_monitor_set_page_ind(const char *text) {
+    if (s_page_ind_lbl && text) lv_label_set_text(s_page_ind_lbl, text);
 }
 
 // ---------------------------------------------------------------------------
@@ -111,62 +116,8 @@ void ui_monitor_enter(void) {
     }
     lv_screen_load(s_scr);
 
-    // ── 标题栏（创建一次，持久存在） ──
-    lv_obj_t *header = lv_obj_create(s_scr);
-    lv_obj_set_pos(header, 0, 0);
-    lv_obj_set_size(header, 240, 30);
-    lv_obj_set_style_bg_color(header, lv_color_hex(0x1A237E), 0);
-    lv_obj_set_style_radius(header, 0, 0);
-    lv_obj_set_style_border_width(header, 0, 0);
-    lv_obj_set_style_pad_all(header, 4, 0);
-    lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *title = lv_label_create(header);
-    lv_label_set_text(title, L_TITLE_BAMBU);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
-
-    // ── 底部栏（创建一次，持久存在） ──
-    lv_obj_t *footer = lv_obj_create(s_scr);
-    lv_obj_set_pos(footer, 0, 290);
-    lv_obj_set_size(footer, 240, 30);
-    lv_obj_set_style_bg_color(footer, lv_color_hex(0x4CAF50), 0);
-    lv_obj_set_style_radius(footer, 0, 0);
-    lv_obj_set_style_border_width(footer, 0, 0);
-    lv_obj_set_style_pad_all(footer, 4, 0);
-    lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *nav = lv_label_create(footer);
-    lv_label_set_text(nav, L_NAV_HINT);
-    lv_obj_set_style_text_font(nav, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(nav, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
-
-    s_page_ind_lbl = lv_label_create(footer);
-    lv_label_set_text(s_page_ind_lbl, "1/1");
-    lv_obj_set_style_text_font(s_page_ind_lbl, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(s_page_ind_lbl, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_align(s_page_ind_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
-
-    // ── 内容区域容器（翻页时只清理这里） ──
-    s_content_area = lv_obj_create(s_scr);
-    lv_obj_set_pos(s_content_area, 0, 0);
-    lv_obj_set_size(s_content_area, 240, 320);
-    lv_obj_set_style_bg_opa(s_content_area, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(s_content_area, 0, 0);
-    lv_obj_set_style_pad_all(s_content_area, 0, 0);
-    lv_obj_remove_flag(s_content_area, LV_OBJ_FLAG_SCROLLABLE);
-
-    // 首次构建内容（标题栏/底部栏已就绪）
+    // 由风格 build 函数创建标题栏/底部栏/内容区（使用主题颜色）
     STYLE_BUILD();
-
-    // 更新页码
-    {
-        char pg[16];
-        snprintf(pg, sizeof(pg), "%d/%d", STYLE_CUR_PAGE() + 1, STYLE_PAGE_COUNT());
-        if (s_page_ind_lbl) lv_label_set_text(s_page_ind_lbl, pg);
-    }
 
     s_refresh_timer = lv_timer_create(refresh_timer_cb, 1000, NULL);
     ESP_LOGI(TAG, "监控页面已加载 (style=%s)", ui_theme_style_name());

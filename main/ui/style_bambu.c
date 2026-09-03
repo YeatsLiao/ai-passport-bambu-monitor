@@ -209,26 +209,72 @@ void style_bambu_build(void) {
     if (!s_scr) return;
     const ui_theme_colors_t *c = ui_theme_get_colors();
 
-    // 清空内容区旧指针（标题栏/底部栏由 ui_monitor 持久管理）
+    // ── 首次 build 或重新进入: 创建标题栏/底部栏/内容区 ──
+    // 检查标题栏是否已存在（s_scr 的第1个子对象）
+    lv_obj_t *header = lv_obj_get_child(s_scr, 0);
+    if (!header || !lv_obj_is_valid(header)) {
+        // 所有旧指针失效（重新进入场景）
+        s_status_lbl = NULL;
+        s_bat_lbl = NULL;
+
+        // 屏幕背景
+        lv_obj_set_style_bg_color(s_scr, lv_color_hex(c->bg), 0);
+
+        // ── 标题栏（创建一次，持久存在） ──
+        header = lv_obj_create(s_scr);
+        lv_obj_set_pos(header, 0, 0);
+        lv_obj_set_size(header, 240, 30);
+        lv_obj_set_style_bg_color(header, lv_color_hex(c->header_bg), 0);
+        lv_obj_set_style_radius(header, 0, 0);
+        lv_obj_set_style_border_width(header, 0, 0);
+        lv_obj_set_style_pad_all(header, 4, 0);
+        lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
+
+        lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, &lv_font_montserrat_14, 0xFFFFFF);
+        if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
+
+        s_bat_lbl = mk_lbl(header, "BAT:--", &lv_font_montserrat_14, 0xFFFFFF);
+        if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -4, 0);
+
+        s_status_lbl = mk_lbl(header, "...", &lv_font_montserrat_14, 0xB0BEC5);
+        if (s_status_lbl) lv_obj_align(s_status_lbl, LV_ALIGN_RIGHT_MID, -56, 0);
+
+        // ── 底部栏（创建一次，持久存在） ──
+        lv_obj_t *footer = lv_obj_create(s_scr);
+        lv_obj_set_pos(footer, 0, 290);
+        lv_obj_set_size(footer, 240, 30);
+        lv_obj_set_style_bg_color(footer, lv_color_hex(c->footer_bg), 0);
+        lv_obj_set_style_radius(footer, 0, 0);
+        lv_obj_set_style_border_width(footer, 0, 0);
+        lv_obj_set_style_pad_all(footer, 4, 0);
+        lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
+
+        lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, &lv_font_montserrat_14, 0xFFFFFF);
+        if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
+
+        // 页码标签由框架通过 ui_monitor_set_page_ind() 更新
+        char pg[16];
+        snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
+        lv_obj_t *pg_lbl = mk_lbl(footer, pg, &lv_font_montserrat_14, 0xFFFFFF);
+        if (pg_lbl) lv_obj_align(pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
+
+        // ── 内容区域容器（翻页时只清理这里） ──
+        s_content_area = lv_obj_create(s_scr);
+        lv_obj_set_pos(s_content_area, 0, 0);
+        lv_obj_set_size(s_content_area, 240, 320);
+        lv_obj_set_style_bg_opa(s_content_area, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(s_content_area, 0, 0);
+        lv_obj_set_style_pad_all(s_content_area, 0, 0);
+        lv_obj_remove_flag(s_content_area, LV_OBJ_FLAG_SCROLLABLE);
+    }
+
+    // ── 每次 build: 清空内容区指针并重建 ──
     memset(s_lbl, 0, sizeof(s_lbl));
     memset(s_ams_lbl, 0, sizeof(s_ams_lbl));
     s_bar = NULL;
     s_bar_idx = -1;
 
-    lv_obj_set_style_bg_color(s_scr, lv_color_hex(c->bg), 0);
-
-    // 标题栏动态标签：首次 build 时创建，后续 rebuild 保留（标题栏不会被销毁）
-    if (!s_status_lbl) {
-        // 找到标题栏对象（s_scr 的第1个子对象）
-        lv_obj_t *header = lv_obj_get_child(s_scr, 0);
-        if (header) {
-            s_bat_lbl = mk_lbl(header, "BAT:--", &lv_font_montserrat_14, 0xFFFFFF);
-            if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -4, 0);
-
-            s_status_lbl = mk_lbl(header, "...", &lv_font_montserrat_14, 0xB0BEC5);
-            if (s_status_lbl) lv_obj_align(s_status_lbl, LV_ALIGN_RIGHT_MID, -56, 0);
-        }
-    }
+    if (s_content_area) lv_obj_clean(s_content_area);
 
     // 构建当前页内容
     if (s_page == 1) build_page1();
