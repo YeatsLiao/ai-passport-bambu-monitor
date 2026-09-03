@@ -1,0 +1,23 @@
+# Build output
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ESP-IDF
+sdkconfig
+sdkconfig.old
+sdkconfig.ci
+
+# Managed components
+managed_components/
+
+# 个人配置（含 WiFi 密码和打印机访问码，请勿提交）
+main/config.h
+
+# OS
+.DS_Store
+Thumbs.db
