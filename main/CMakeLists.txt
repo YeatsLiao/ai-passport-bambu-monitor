@@ -13,6 +13,7 @@ idf_component_register(
          "ui/style_industrial.c"
          "ui/style_neon.c"
          "ui/style_pixel.c"
+         "ui/style_ssd.c"
     INCLUDE_DIRS "."
     REQUIRES bsp esp_event esp_hw_support esp_netif esp_wifi esp_timer
              mqtt nvs_flash json lwip
