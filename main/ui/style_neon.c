@@ -26,6 +26,9 @@ static const char *TAG __attribute__((unused)) = "style_neon";
 #define CMP_STATE 7
 #define CMP_SPEED 8
 
+// 组件图标统一由 ui_theme 映射, 保证 6 个风格语义一致
+#define ICO(cmp) ui_theme_component_icon(cmp)
+
 #ifndef CFG_COMPONENT_ORDER
 static const int s_default_order[] = {5, 4, 1, 2, 7, 8};
 #define s_order s_default_order
@@ -102,20 +105,35 @@ static void build_page0(void) {
     for (int i = 0; i < s_order_len && i < 6; i++) {
         int cmp = s_order[i];
         char buf[48];
-        const lv_font_t *font = &lv_font_montserrat_14;
+        // 含本地化文字的行用 L_FONT_TEXT (中文模式回落到中文字体),
+        // 纯数字行用 L_FONT_NUM* (两种语言都是 Montserrat)
+        const lv_font_t *font = L_FONT_TEXT;
         uint32_t color = c->text_primary;
 
         switch (cmp) {
             case CMP_PERCENT:
-                font = &lv_font_montserrat_20; color = c->accent;
+                font = L_FONT_NUM_MID; color = c->accent;
                 snprintf(buf, sizeof(buf), "--%%"); break;
-            case CMP_LAYER:    snprintf(buf, sizeof(buf), L_LAYER " --/--"); break;
-            case CMP_NOZZLE:   color = c->gauge_nozzle; snprintf(buf, sizeof(buf), L_NOZZLE " --/--°C"); break;
-            case CMP_BED:      color = c->gauge_bed; snprintf(buf, sizeof(buf), L_BED " --/--°C"); break;
-            case CMP_CHAMBER:  color = c->gauge_chamber; snprintf(buf, sizeof(buf), L_CHAMBER " --°C"); break;
-            case CMP_REMAIN:   color = c->text_secondary; snprintf(buf, sizeof(buf), L_REMAIN " --"); break;
-            case CMP_STATE:    color = c->text_secondary; snprintf(buf, sizeof(buf), L_CONNECTING); break;
-            case CMP_SPEED:    color = c->text_secondary; snprintf(buf, sizeof(buf), L_SPEED " -- --%%"); break;
+            case CMP_LAYER:
+                snprintf(buf, sizeof(buf), "%s " L_LAYER " --/--", ICO(CMP_LAYER)); break;
+            case CMP_NOZZLE:
+                color = c->gauge_nozzle;
+                snprintf(buf, sizeof(buf), "%s " L_NOZZLE " --/--°C", ICO(CMP_NOZZLE)); break;
+            case CMP_BED:
+                color = c->gauge_bed;
+                snprintf(buf, sizeof(buf), "%s " L_BED " --/--°C", ICO(CMP_BED)); break;
+            case CMP_CHAMBER:
+                color = c->gauge_chamber;
+                snprintf(buf, sizeof(buf), "%s " L_CHAMBER " --°C", ICO(CMP_CHAMBER)); break;
+            case CMP_REMAIN:
+                color = c->text_secondary;
+                snprintf(buf, sizeof(buf), "%s " L_REMAIN " --", ICO(CMP_REMAIN)); break;
+            case CMP_STATE:
+                color = c->text_secondary;
+                snprintf(buf, sizeof(buf), "%s " L_CONNECTING, LV_SYMBOL_WIFI); break;
+            case CMP_SPEED:
+                color = c->text_secondary;
+                snprintf(buf, sizeof(buf), "%s " L_SPEED " -- --%%", ICO(CMP_SPEED)); break;
             default: continue;
         }
 
@@ -128,7 +146,7 @@ static void build_page0(void) {
             if (!bar_bg) continue;
             lv_obj_set_pos(bar_bg, 0, y);
             lv_obj_set_size(bar_bg, 200, 14);
-            lv_obj_set_style_bg_color(bar_bg, lv_color_hex(0x2A2A2A), 0);
+            lv_obj_set_style_bg_color(bar_bg, lv_color_hex(c->bg), 0);
             lv_obj_set_style_radius(bar_bg, 7, 0);
             lv_obj_set_style_pad_all(bar_bg, 0, 0);
             lv_obj_set_style_border_width(bar_bg, 0, 0);
@@ -165,7 +183,7 @@ static void build_page1(void) {
     lv_obj_set_style_pad_all(card, 12, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    mk_lbl(card, L_AMS, &lv_font_montserrat_20, c->accent);
+    mk_lbl(card, LV_SYMBOL_SD_CARD " " L_AMS, L_FONT_TEXT_BIG, c->accent);
     for (int i = 0; i < 5; i++) {
         // 色块 (颜色在 update 中由 MQTT 推送的 tray_color 填充)
         lv_obj_t *sw = lv_obj_create(card);
@@ -176,11 +194,12 @@ static void build_page1(void) {
             lv_obj_set_style_radius(sw, 3, 0);
             lv_obj_set_style_border_width(sw, 1, 0);
             lv_obj_set_style_border_color(sw, lv_color_hex(c->border), 0);
-            lv_obj_set_style_bg_color(sw, lv_color_hex(0x888888), 0);
+            // 无数据时的占位色用主题次要文字色 (收到 MQTT 数据后被覆盖)
+            lv_obj_set_style_bg_color(sw, lv_color_hex(c->text_secondary), 0);
         }
         s_ams_swatch[i] = sw;
 
-        s_ams_lbl[i] = mk_lbl(card, L_EMPTY, &lv_font_montserrat_14, c->text_secondary);
+        s_ams_lbl[i] = mk_lbl(card, L_EMPTY, L_FONT_TEXT, c->text_secondary);
         if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 20, 36 + i * 26);
     }
 }
@@ -207,13 +226,14 @@ void style_neon_build(void) {
     lv_obj_set_style_pad_all(header, 4, 0);
     lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, &lv_font_montserrat_14, c->accent);
+    lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, L_FONT_TEXT, c->accent);
     if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
 
-    s_time_lbl = mk_lbl(header, "--:--", &lv_font_montserrat_14, c->text_primary);
+    s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, c->text_primary);
     if (s_time_lbl) lv_obj_align(s_time_lbl, LV_ALIGN_CENTER, 0, 0);
 
-    s_bat_lbl = mk_lbl(header, "BAT:--", &lv_font_montserrat_14, c->text_secondary);
+    // 电池图标 + 百分比 (图标字形只在 Montserrat 内, 本行无中文, 用 SYMBOL 字体)
+    s_bat_lbl = mk_lbl(header, LV_SYMBOL_BATTERY_FULL " --", L_FONT_SYMBOL, c->text_secondary);
     if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -4, 0);
 
     // ── 底部栏 (持久) ──
@@ -226,12 +246,12 @@ void style_neon_build(void) {
     lv_obj_set_style_pad_all(footer, 4, 0);
     lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, &lv_font_montserrat_14, c->text_secondary);
+    lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, L_FONT_TEXT, c->text_secondary);
     if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
 
     char pg[16];
     snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
-    s_pg_lbl = mk_lbl(footer, pg, &lv_font_montserrat_14, c->accent);
+    s_pg_lbl = mk_lbl(footer, pg, L_FONT_NUM, c->accent);
     if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
 
     // ── 内容区域容器 ──
@@ -278,11 +298,11 @@ void style_neon_update(void) {
         }
     }
 
-    // 更新电池
+    // 更新电池 (图标随电量分档)
     if (s_bat_lbl) {
         int soc = bsp_battery_soc();
-        if (soc >= 0) snprintf(buf, sizeof(buf), "BAT:%d%%", soc);
-        else          snprintf(buf, sizeof(buf), "BAT:--");
+        if (soc >= 0) snprintf(buf, sizeof(buf), "%s %d%%", ui_theme_battery_icon(soc), soc);
+        else          snprintf(buf, sizeof(buf), "%s --", ui_theme_battery_icon(-1));
         lv_label_set_text(s_bat_lbl, buf);
     }
 
@@ -298,41 +318,53 @@ void style_neon_update(void) {
                     if (s_bar) lv_bar_set_value(s_bar, st->mc_percent, LV_ANIM_ON);
                     break;
                 case CMP_LAYER:
-                    snprintf(buf, sizeof(buf), L_LAYER " %d/%d", st->layer_num, st->total_layer);
+                    snprintf(buf, sizeof(buf), "%s " L_LAYER " %d/%d",
+                             ICO(CMP_LAYER), st->layer_num, st->total_layer);
                     lv_label_set_text(s_lbl[i], buf); break;
                 case CMP_NOZZLE:
-                    snprintf(buf, sizeof(buf), L_NOZZLE " %d/%d°C", (int)st->nozzle_temp, (int)st->nozzle_target);
+                    snprintf(buf, sizeof(buf), "%s " L_NOZZLE " %d/%d°C",
+                             ICO(CMP_NOZZLE), (int)st->nozzle_temp, (int)st->nozzle_target);
                     lv_label_set_text(s_lbl[i], buf); break;
                 case CMP_BED:
-                    snprintf(buf, sizeof(buf), L_BED " %d/%d°C", (int)st->bed_temp, (int)st->bed_target);
+                    snprintf(buf, sizeof(buf), "%s " L_BED " %d/%d°C",
+                             ICO(CMP_BED), (int)st->bed_temp, (int)st->bed_target);
                     lv_label_set_text(s_lbl[i], buf); break;
                 case CMP_CHAMBER:
-                    snprintf(buf, sizeof(buf), L_CHAMBER " %d°C", (int)st->chamber_temp);
+                    snprintf(buf, sizeof(buf), "%s " L_CHAMBER " %d°C",
+                             ICO(CMP_CHAMBER), (int)st->chamber_temp);
                     lv_label_set_text(s_lbl[i], buf); break;
                 case CMP_REMAIN:
                     if (st->mc_remaining > 0) {
                         int h = st->mc_remaining / 60, m = st->mc_remaining % 60;
                         if (h > 0)
-                            snprintf(buf, sizeof(buf), L_REMAIN " %d" L_HOUR "%d" L_MIN, h, m);
+                            snprintf(buf, sizeof(buf), "%s " L_REMAIN " %d" L_HOUR "%d" L_MIN,
+                                     ICO(CMP_REMAIN), h, m);
                         else
-                            snprintf(buf, sizeof(buf), L_REMAIN " %d" L_MIN, m);
-                    } else snprintf(buf, sizeof(buf), L_REMAIN " --");
+                            snprintf(buf, sizeof(buf), "%s " L_REMAIN " %d" L_MIN,
+                                     ICO(CMP_REMAIN), m);
+                    } else snprintf(buf, sizeof(buf), "%s " L_REMAIN " --", ICO(CMP_REMAIN));
                     lv_label_set_text(s_lbl[i], buf); break;
-                case CMP_STATE:
-                    // MQTT 未连接时显示 Connecting, 否则显示打印状态
-                    if (!bambu_mqtt_connected()) {
-                        lv_label_set_text(s_lbl[i], L_CONNECTING);
-                        lv_obj_set_style_text_color(s_lbl[i], lv_color_hex(c->error), 0);
+                case CMP_STATE: {
+                    // MQTT 未连接时显示 Connecting, 否则显示打印状态 (图标随状态变化)
+                    bool conn = bambu_mqtt_connected();
+                    if (conn) {
+                        snprintf(buf, sizeof(buf), "%s %s",
+                                 ui_theme_state_icon(st->state, true), state_text(st->state));
+                        lv_label_set_text(s_lbl[i], buf);
                     } else {
-                        lv_label_set_text(s_lbl[i], state_text(st->state));
-                        if (st->state == BAMBU_STATE_PAUSE) lv_obj_set_style_text_color(s_lbl[i], lv_color_hex(c->warning), 0);
-                        else if (st->state == BAMBU_STATE_FAILED) lv_obj_set_style_text_color(s_lbl[i], lv_color_hex(c->error), 0);
-                        else if (st->state == BAMBU_STATE_RUNNING) lv_obj_set_style_text_color(s_lbl[i], lv_color_hex(c->success), 0);
-                        else lv_obj_set_style_text_color(s_lbl[i], lv_color_hex(c->text_secondary), 0);
+                        snprintf(buf, sizeof(buf), "%s " L_CONNECTING, LV_SYMBOL_WIFI);
+                        lv_label_set_text(s_lbl[i], buf);
                     }
+                    if (!conn) lv_obj_set_style_text_color(s_lbl[i], lv_color_hex(c->error), 0);
+                    else if (st->state == BAMBU_STATE_PAUSE) lv_obj_set_style_text_color(s_lbl[i], lv_color_hex(c->warning), 0);
+                    else if (st->state == BAMBU_STATE_FAILED) lv_obj_set_style_text_color(s_lbl[i], lv_color_hex(c->error), 0);
+                    else if (st->state == BAMBU_STATE_RUNNING) lv_obj_set_style_text_color(s_lbl[i], lv_color_hex(c->success), 0);
+                    else lv_obj_set_style_text_color(s_lbl[i], lv_color_hex(c->text_secondary), 0);
                     break;
+                }
                 case CMP_SPEED:
-                    snprintf(buf, sizeof(buf), L_SPEED " %d %d%%", st->spd_lvl, st->spd_mag);
+                    snprintf(buf, sizeof(buf), "%s " L_SPEED " %d %d%%",
+                             ICO(CMP_SPEED), st->spd_lvl, st->spd_mag);
                     lv_label_set_text(s_lbl[i], buf); break;
             }
         }
@@ -346,7 +378,7 @@ void style_neon_update(void) {
             bambu_ams_tray_t *t = (i < 4) ? &st->trays[i] : &st->vt_tray;
             char name[8];
             if (i < 4) snprintf(name, sizeof(name), "#%d", i + 1);
-            else       snprintf(name, sizeof(name), "Ext");
+            else       snprintf(name, sizeof(name), "%s", L_EXT);
             if (t->type[0])
                 snprintf(buf, sizeof(buf), "%s %s %d%%", name, t->type, (int)t->remain);
             else
