@@ -94,8 +94,11 @@ JSON 数据结构（`print` 对象内的关键字段，完整报文见 [Topic-de
 │   ├── config.example.h    # 配置模板（复制为 config.h 后修改）
 │   ├── CMakeLists.txt
 │   └── ui/
-│       ├── ui_theme.h/c    # 4 种颜色主题定义
-│       ├── ui_monitor.h/c  # 监控页面（4 种风格布局 + 分页逻辑）
+│       ├── ui_theme.h/c    # 7 套颜色主题 + 对比度/色块/图标工具
+│       ├── ui_lang.h       # 中英文案（CFG_LANG 编译期切换）
+│       ├── ui_monitor.h/c  # 监控页面（7 种风格布局 + 分页逻辑）
+│       ├── style_*.c       # 各风格的布局实现
+│       └── fonts/          # 裁剪版中文字体（tools/gen_cn_font.js 生成）
 ├── components/bsp/         # 硬件抽象层（显示 + 按键）
 ├── docs/
 │   ├── README.md           # 本文档
@@ -186,7 +189,7 @@ CW2017 电量计挂 I2C 总线（地址 0x63），顶栏右侧显示 `BAT:xx%`�
 
 ### 多风格 UI 与翻页
 
-共 6 套 UI 风格（设计描述见 [UI-DESIGN.md](UI-DESIGN.md)），编译时由 `config.h` 的 `CFG_UI_STYLE` 宏选择 1 种链接进固件：
+共 7 套 UI 风格（设计描述见 [UI-DESIGN.md](UI-DESIGN.md)），编译时由 `config.h` 的 `CFG_UI_STYLE` 宏选择 1 种链接进固件：
 
 | 宏值 | 源文件 | 风格 |
 |------|--------|------|
@@ -196,8 +199,9 @@ CW2017 电量计挂 I2C 总线（地址 0x63），顶栏右侧显示 `BAT:xx%`�
 | `STYLE_WHITE` | style_white.c | 纯白极简素雅风 |
 | `STYLE_INDUSTRIAL` | style_industrial.c | 硬核机房工控风 |
 | `STYLE_NEON` | style_neon.c | 极简霓虹低饱和极客风 |
+| `STYLE_PIXEL` | style_pixel.c | 像素机器人风（ai-passport 官网） |
 
-卡片风格使用 2 页分页：
+所有风格均使用 2 页分页：
 
 | 页面 | 内容 |
 |------|------|

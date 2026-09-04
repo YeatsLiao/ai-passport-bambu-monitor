@@ -1,18 +1,18 @@
 {
     "print": {
         "3D": {
-            "layer_num": 1,
-            "total_layer_num": 270
+            "layer_num": 78,
+            "total_layer_num": 625
         },
         "ams": {
             "ams": [
                 {
                     "dry_time": 0,
-                    "humidity": "1",
-                    "humidity_raw": "38",
+                    "humidity": "2",
+                    "humidity_raw": "31",
                     "id": "0",
                     "info": "1001",
-                    "temp": "34.4",
+                    "temp": "35.7",
                     "tray": [
                         {
                             "bed_temp": "0",
@@ -27,7 +27,7 @@
                             "id": "0",
                             "nozzle_temp_max": "260",
                             "nozzle_temp_min": "230",
-                            "remain": 54,
+                            "remain": 48,
                             "state": 11,
                             "tag_uid": "5AC5A3F200000100",
                             "total_len": 330000,
@@ -54,7 +54,7 @@
                             "id": "1",
                             "nozzle_temp_max": "230",
                             "nozzle_temp_min": "190",
-                            "remain": 57,
+                            "remain": 53,
                             "state": 11,
                             "tag_uid": "565E09DF00000100",
                             "total_len": 330000,
@@ -108,7 +108,7 @@
                             "id": "3",
                             "nozzle_temp_max": "230",
                             "nozzle_temp_min": "190",
-                            "remain": 82,
+                            "remain": 80,
                             "state": 11,
                             "tag_uid": "3648FCC600000100",
                             "total_len": 330000,
@@ -133,13 +133,13 @@
             "power_on_flag": true,
             "tray_exist_bits": "f",
             "tray_is_bbl_bits": "f",
-            "tray_now": "3",
-            "tray_pre": "3",
+            "tray_now": "0",
+            "tray_pre": "0",
             "tray_read_done_bits": "f",
             "tray_reading_bits": "0",
-            "tray_tar": "3",
+            "tray_tar": "0",
             "unbind_ams_stat": 0,
-            "version": 71
+            "version": 227
         },
         "ams_rfid_status": 3,
         "ams_status": 768,
@@ -147,10 +147,10 @@
         "aux": "280100C",
         "aux_part_fan": true,
         "batch_id": 0,
-        "bed_target_temper": 55.0,
-        "bed_temper": 55.0,
+        "bed_target_temper": 70.0,
+        "bed_temper": 70.0,
         "big_fan1_speed": "0",
-        "big_fan2_speed": "8",
+        "big_fan2_speed": "10",
         "cali_version": 0,
         "canvas_id": 0,
         "care": [
@@ -165,16 +165,16 @@
         ],
         "cfg": "FFA83",
         "command": "push_status",
-        "cooling_fan_speed": "0",
+        "cooling_fan_speed": "2",
         "design_id": "",
         "device": {
             "bed": {
                 "info": {
-                    "temp": 3604535
+                    "temp": 4587590
                 },
                 "state": 2
             },
-            "bed_temp": 3604535,
+            "bed_temp": 4587590,
             "cam": {
                 "laser": {
                     "cond": 252,
@@ -183,7 +183,7 @@
             },
             "ctc": {
                 "info": {
-                    "temp": 34
+                    "temp": 40
                 },
                 "state": 0
             },
@@ -203,16 +203,16 @@
                         "htar": 0,
                         "id": 0,
                         "info": 74,
-                        "snow": 3,
-                        "spre": 3,
-                        "star": 3,
+                        "snow": 0,
+                        "spre": 0,
+                        "star": 0,
                         "stat": 197376,
-                        "temp": 14418140
+                        "temp": 16056565
                     }
                 ],
                 "state": 1
             },
-            "fan": 361376,
+            "fan": 363872,
             "laser": {
                 "power": 0
             },
@@ -240,7 +240,7 @@
         },
         "err": "0",
         "fail_reason": "0",
-        "fan_gear": 9830400,
+        "fan_gear": 11796515,
         "file": "/data/Metadata/plate_1.gcode",
         "force_upgrade": false,
         "fun": "20011830F9CFF",
@@ -252,7 +252,7 @@
         "home_flag": -1067070049,
         "hw_switch_state": 1,
         "info": {
-            "temp": 34
+            "temp": 40
         },
         "ipcam": {
             "agora_service": "disable",
@@ -298,7 +298,7 @@
         },
         "job_attr": 18,
         "job_id": "0",
-        "layer_num": 1,
+        "layer_num": 78,
         "lights_report": [
             {
                 "mode": "on",
@@ -310,15 +310,15 @@
             }
         ],
         "mapping": [
-            3
+            0
         ],
         "mc_action": 0,
         "mc_err": 0,
-        "mc_percent": 4,
+        "mc_percent": 25,
         "mc_print_error_code": "0",
         "mc_print_stage": "2",
         "mc_print_sub_stage": 0,
-        "mc_remaining_time": 139,
+        "mc_remaining_time": 85,
         "mc_stage": 2,
         "model_id": "",
         "net": {
@@ -335,15 +335,15 @@
             ]
         },
         "nozzle_diameter": "0.4",
-        "nozzle_target_temper": 220.0,
-        "nozzle_temper": 220.0,
+        "nozzle_target_temper": 245.0,
+        "nozzle_temper": 245.0,
         "nozzle_type": "HX01",
         "online": {
             "ahb": false,
             "ext": false,
             "version": 4
         },
-        "percent": 4,
+        "percent": 25,
         "plate_cnt": 1,
         "plate_id": 1,
         "plate_idx": 1,
@@ -352,14 +352,14 @@
         "print_gcode_action": 0,
         "print_real_action": 0,
         "print_type": "local",
-        "profile_id": "0",
+        "profile_id": "",
         "project_id": "0",
         "queue": 0,
         "queue_est": 0,
         "queue_number": 0,
         "queue_sts": 0,
         "queue_total": 0,
-        "remain_time": 139,
+        "remain_time": 85,
         "s_obj": [],
         "sdcard": true,
         "sequence_id": "2021",
@@ -374,10 +374,10 @@
             8
         ],
         "stg_cur": 0,
-        "subtask_id": "0",
-        "subtask_name": "超级可活动的迷你弹簧解压玩具_(低耗材)",
-        "task_id": "3511",
-        "total_layer_num": 270,
+        "subtask_id": "",
+        "subtask_name": "除油膜过滤器（安彩、尼特利壁挂）-增加20管可用配置",
+        "task_id": "2356",
+        "total_layer_num": 625,
         "upgrade_state": {
             "ahb_new_version_number": "",
             "ams_new_version_number": "",
@@ -466,7 +466,7 @@
             "tray_weight": "0",
             "xcam_info": "000000000000000000000000"
         },
-        "wifi_signal": "-40dBm",
+        "wifi_signal": "-42dBm",
         "xcam": {
             "allow_skip_parts": false,
             "buildplate_marker_detector": true,
