@@ -69,6 +69,13 @@ lv_obj_t *s_content_area  = NULL;   // 内容容器
     #define STYLE_CUR_PAGE    style_neon_current_page
     #define STYLE_NEXT        style_neon_next_page
     #define STYLE_PREV        style_neon_prev_page
+#elif CFG_UI_STYLE == STYLE_PIXEL
+    #define STYLE_BUILD       style_pixel_build
+    #define STYLE_UPDATE      style_pixel_update
+    #define STYLE_PAGE_COUNT  style_pixel_page_count
+    #define STYLE_CUR_PAGE    style_pixel_current_page
+    #define STYLE_NEXT        style_pixel_next_page
+    #define STYLE_PREV        style_pixel_prev_page
 #endif
 
 // ---------------------------------------------------------------------------

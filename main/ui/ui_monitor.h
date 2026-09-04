@@ -64,4 +64,11 @@ void rebuild_page(void);
     int  style_neon_current_page(void);
     void style_neon_next_page(void);
     void style_neon_prev_page(void);
+#elif CFG_UI_STYLE == STYLE_PIXEL
+    void style_pixel_build(void);
+    void style_pixel_update(void);
+    int  style_pixel_page_count(void);
+    int  style_pixel_current_page(void);
+    void style_pixel_next_page(void);
+    void style_pixel_prev_page(void);
 #endif
