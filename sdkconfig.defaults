@@ -33,6 +33,12 @@ CONFIG_LV_FONT_MONTSERRAT_14=y
 CONFIG_LV_FONT_MONTSERRAT_20=y
 CONFIG_LV_FONT_MONTSERRAT_28=y
 CONFIG_LV_FONT_MONTSERRAT_48=y
+# 中文不依赖 LVGL 内置 CJK 字体 (子集仅 1187 字且缺常用字),
+# 改用 tools/gen_cn_font.js 生成的裁剪字体 main/ui/fonts/lv_font_cn_*.c
+# lv_led: style_industrial 的段式进度条与状态灯依赖此控件
+CONFIG_LV_USE_LED=y
+# 缺字形占位: 中文字体是裁剪子集, 万一漏字时显示方块而不是崩溃
+CONFIG_LV_USE_FONT_PLACEHOLDER=y
 CONFIG_LV_USE_CLIB_MALLOC=y
 CONFIG_LV_USE_CLIB_STRING=y
 CONFIG_LV_USE_CLIB_SPRINTF=y

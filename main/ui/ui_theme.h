@@ -1,4 +1,4 @@
-// main/ui/ui_theme.h —— 6 套 UI 配色方案
+// main/ui/ui_theme.h —— 7 套 UI 配色方案
 #pragma once
 
 #include "lvgl.h"
@@ -30,5 +30,20 @@ const char *ui_theme_style_name(void);
 lv_color_t ui_theme_hex_color(const char *hex);
 // 亮度对比度: 亮背景返黑字, 暗背景返白字 (移植自 BambuHelper 算法)
 lv_color_t ui_theme_contrast_text(uint32_t rgb);
+// 同上, 但返回 0xRRGGBB, 供按 uint32_t 传色的接口 (如各风格的 mk_lbl) 直接使用
+uint32_t ui_theme_on_color(uint32_t bg);
 // 色块外观按 MQTT 实时数据渲染: 透明料画空心描边, 其余填充真实颜色 (无效时灰色兜底)
 void ui_theme_tray_swatch(lv_obj_t *swatch, const bambu_ams_tray_t *t);
+
+// 图标工具 (LVGL 内置 FontAwesome 符号字形)
+//
+// 中文字体 (lv_font_cn_*) 的 .fallback 指向同字号 Montserrat, 而 LVGL 9 的
+// lv_font_get_glyph_dsc() 是逐字形沿 fallback 链查找的, 因此用 L_FONT_TEXT 渲染
+// "图标 + 中文" 混排文本时, 图标会自动回落到 Montserrat, 不会丢字形。
+//
+// 打印状态 -> 动态图标 (播放/暂停/警告/对勾/电源)
+const char *ui_theme_state_icon(bambu_print_state_t s, bool connected);
+// 电量百分比 -> 电池图标 (四档)
+const char *ui_theme_battery_icon(int soc);
+// 组件编号 -> 固定图标 (编号见 config.h: 1喷嘴 2热床 3腔体 4层数 5进度 6剩余 7状态 8速度 9AMS)
+const char *ui_theme_component_icon(int cmp);

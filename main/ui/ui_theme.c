@@ -1,4 +1,4 @@
-// main/ui/ui_theme.c —— 6 套 UI 配色方案实现
+// main/ui/ui_theme.c —— 7 套 UI 配色方案实现
 // 只编译当前选中风格的配色，避免 unused-const-variable 警告
 #include "ui_theme.h"
 #include "ui_lang.h"
@@ -125,6 +125,27 @@ static const ui_theme_colors_t theme_neon = {
     .radius        = 10,
 };
 
+#elif CFG_UI_STYLE == STYLE_PIXEL
+// 风格7: 像素机器人风 — 移植自 ai-passport 官网 UI (ui_pixel.h 调色板)
+// 天空蓝底 + 纸牌米白卡片 + 墨黑粗描边 + 草地绿, 全部直角 (radius 0)
+static const ui_theme_colors_t theme_pixel = {
+    .bg            = 0x1689E8,  // UI_SKY    天空蓝
+    .card_bg       = 0xF4F4EA,  // UI_PAPER  纸牌米白
+    .header_bg     = 0x0872C9,  // UI_SKY_DARK 深天空蓝 (标题牌是纸白, 底要留给天空)
+    .footer_bg     = 0x82BE2D,  // UI_GRASS  草地绿
+    .text_primary  = 0x17202A,  // UI_INK    纸白卡片上的墨字
+    .text_secondary= 0x78909C,  // 墨色淡化 (官网 disabled 色)
+    .accent        = 0xFFB23E,  // UI_ORANGE 机器人围巾橙
+    .success       = 0x82BE2D,  // UI_GRASS
+    .warning       = 0xFFD928,  // UI_YELLOW 选中高亮黄
+    .error         = 0xE43B2F,  // UI_RED
+    .border        = 0x17202A,  // UI_INK    像素风粗黑描边
+    .gauge_nozzle  = 0xE43B2F,  // UI_RED    喷嘴高温
+    .gauge_bed     = 0x0872C9,  // UI_SKY_DARK
+    .gauge_chamber = 0x7557D9,  // 机器人机身紫
+    .radius        = 0,         // 像素风: 一律直角
+};
+
 #else
 // 默认使用 Bambu 风格
 static const ui_theme_colors_t theme_bambu = {
@@ -159,6 +180,8 @@ const ui_theme_colors_t *ui_theme_get_colors(void) {
     return &theme_industrial;
 #elif CFG_UI_STYLE == STYLE_NEON
     return &theme_neon;
+#elif CFG_UI_STYLE == STYLE_PIXEL
+    return &theme_pixel;
 #else
     return &theme_bambu;
 #endif
@@ -177,6 +200,8 @@ const char *ui_theme_style_name(void) {
     return "Industrial";
 #elif CFG_UI_STYLE == STYLE_NEON
     return "Neon";
+#elif CFG_UI_STYLE == STYLE_PIXEL
+    return "Pixel";
 #else
     return "Unknown";
 #endif
@@ -205,14 +230,19 @@ lv_color_t ui_theme_contrast_text(uint32_t rgb) {
     return (lum > 0.5f) ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
 }
 
+uint32_t ui_theme_on_color(uint32_t bg) {
+    return lv_color_to_u32(ui_theme_contrast_text(bg)) & 0xFFFFFF;
+}
+
 void ui_theme_tray_swatch(lv_obj_t *swatch, const bambu_ams_tray_t *t) {
     if (!swatch || !t) return;
+    const ui_theme_colors_t *c = ui_theme_get_colors();
     if (t->translucent) {
-        // 透明/透光耗材: 空心描边 (淡灰框 + 微透底色), 不误显示为黑色
-        lv_obj_set_style_bg_color(swatch, lv_color_hex(0xCCCCCC), 0);
+        // 透明/透光耗材: 空心描边 (主题边框色 + 微透底), 不误显示为黑色
+        lv_obj_set_style_bg_color(swatch, lv_color_hex(c->text_secondary), 0);
         lv_obj_set_style_bg_opa(swatch, LV_OPA_20, 0);
         lv_obj_set_style_border_width(swatch, 2, 0);
-        lv_obj_set_style_border_color(swatch, lv_color_hex(0xCCCCCC), 0);
+        lv_obj_set_style_border_color(swatch, lv_color_hex(c->text_secondary), 0);
     } else {
         // 常规耗材: 填充 tray_color 前 6 位 RGB
         uint32_t rgb = 0x888888;
@@ -223,5 +253,41 @@ void ui_theme_tray_swatch(lv_obj_t *swatch, const bambu_ams_tray_t *t) {
         }
         lv_obj_set_style_bg_opa(swatch, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(swatch, lv_color_hex(rgb), 0);
+    }
+}
+
+const char *ui_theme_state_icon(bambu_print_state_t s, bool connected) {
+    if (!connected) return LV_SYMBOL_WARNING;
+    switch (s) {
+        case BAMBU_STATE_RUNNING: return LV_SYMBOL_PLAY;
+        case BAMBU_STATE_PAUSE:   return LV_SYMBOL_PAUSE;
+        case BAMBU_STATE_FINISH:  return LV_SYMBOL_OK;
+        case BAMBU_STATE_FAILED:  return LV_SYMBOL_WARNING;
+        case BAMBU_STATE_PREPARE: return LV_SYMBOL_CHARGE;
+        default:                  return LV_SYMBOL_POWER;
+    }
+}
+
+const char *ui_theme_battery_icon(int soc) {
+    if (soc < 0)  return LV_SYMBOL_BATTERY_EMPTY;
+    if (soc < 25) return LV_SYMBOL_BATTERY_1;
+    if (soc < 50) return LV_SYMBOL_BATTERY_2;
+    if (soc < 80) return LV_SYMBOL_BATTERY_3;
+    return LV_SYMBOL_BATTERY_FULL;
+}
+
+const char *ui_theme_component_icon(int cmp) {
+    // 编号与各 style_*.c 的 CMP_* 宏、config.h 注释一致
+    switch (cmp) {
+        case 1:  return LV_SYMBOL_CHARGE;     // 喷嘴 (加热)
+        case 2:  return LV_SYMBOL_HOME;       // 热床 (底板)
+        case 3:  return LV_SYMBOL_DRIVE;      // 腔体 (箱体)
+        case 4:  return LV_SYMBOL_LIST;       // 层数
+        case 5:  return LV_SYMBOL_BARS;       // 进度
+        case 6:  return LV_SYMBOL_LOOP;       // 剩余时间
+        case 7:  return LV_SYMBOL_POWER;      // 状态 (运行时由 state_icon 覆盖)
+        case 8:  return LV_SYMBOL_PLAY;       // 速度
+        case 9:  return LV_SYMBOL_SD_CARD;    // AMS 料槽
+        default: return LV_SYMBOL_BULLET;     // 未知组件用圆点占位
     }
 }
