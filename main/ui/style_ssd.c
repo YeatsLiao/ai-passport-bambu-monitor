@@ -1,8 +1,7 @@
-// main/ui/style_ssd.c —— 风格8: 2.5 寸固态硬盘标签风
-// 整机壳子与 2.5 寸 SSD 高度相似, UI 直接做成盘面:
-//   Page0 = 盘面标签贴纸: 品牌行 + 状态徽章 + 容量式大字百分比 + 规格表 + 底部条码
+// main/ui/style_ssd.c —— 风格8: 2.5 寸固态硬盘标签风 (参照实物盘面)
+//   Page0 = 黑色标签: 品牌行 + 右侧规格三行 + 容量式大字 + 条码/二维码 + 规格表
 //   Page1 = SMART 信息表: AMS 料槽类型/余量横条
-// 顶部/底部为深灰金属端盖, 底栏嵌一颗随打印状态亮灭的"活动指示灯"
+// 盘身哑光黑, 四角金铜螺丝 + 右缘 SATA 金手指装饰, 底栏嵌活动指示灯
 // 翻页策略: 两页卡片同时创建, 翻页只切换显示/隐藏 (不 destroy/rebuild)
 #include "ui_monitor.h"
 #include "ui_theme.h"
@@ -42,9 +41,8 @@ static int s_total_pages = 1 + HAS_AMS;
 
 static lv_obj_t *s_card[2] = {NULL, NULL};
 
-// Page 0: 盘面标签贴纸
-static lv_obj_t *s_badge     = NULL;   // 状态徽章 (背景色随打印状态)
-static lv_obj_t *s_badge_lbl = NULL;   // 徽章文字
+// Page 0: 黑色标签
+static lv_obj_t *s_state_lbl = NULL;   // 状态文字 (颜色随打印状态)
 static lv_obj_t *s_pct_lbl   = NULL;   // 容量式大字百分比
 static lv_obj_t *s_row_lbl[5];         // 规格表名称列
 static lv_obj_t *s_row_val[5];         // 规格表数值列 (右对齐)
@@ -122,7 +120,7 @@ static void build_page0(void) {
     s_card[0] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    // 标签贴纸直接下探到 footer 上沿 (y286), 整面都是盘面, 不留背景空带
+    // 标签直接下探到 footer 上沿 (y286), 整面都是盘面, 不留背景空带
     lv_obj_set_size(card, 224, 252);
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, 2, 0);
@@ -131,38 +129,60 @@ static void build_page0(void) {
     lv_obj_set_style_pad_all(card, 10, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    // ── 品牌行: 左品牌, 右状态徽章 (SSD 标签的容量角标位置) ──
-    mk_lbl(card, L_TITLE_BAMBU " Lab", L_FONT_TEXT_BIG, c->text_primary);
+    const uint32_t print_w = c->text_primary;   // 印刷白 (反白条码底/二维码底)
 
-    s_badge = lv_obj_create(card);
-    if (s_badge) {
-        lv_obj_set_size(s_badge, LV_SIZE_CONTENT, 20);
-        lv_obj_align(s_badge, LV_ALIGN_TOP_RIGHT, 0, 0);
-        lv_obj_remove_flag(s_badge, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_radius(s_badge, 2, 0);
-        lv_obj_set_style_border_width(s_badge, 0, 0);
-        lv_obj_set_style_pad_hor(s_badge, 6, 0);
-        lv_obj_set_style_pad_ver(s_badge, 1, 0);
-        lv_obj_set_style_bg_opa(s_badge, LV_OPA_COVER, 0);
-        lv_obj_set_style_bg_color(s_badge, lv_color_hex(c->border), 0);
-        s_badge_lbl = mk_lbl(s_badge, L_CONNECTING, L_FONT_TEXT,
-                             ui_theme_on_color(c->border));
+    // ── 标签顶部: 左品牌行, 右三行规格小字 (实物 MODEL/RATED/INTERFACE 位) ──
+    mk_lbl(card, "Bambu Lab", L_FONT_TEXT_BIG, c->text_primary);
+    static const char *specs[3] = {"MODEL:BMBU-MON", "RATED:DC+5.0V", "IF:WIFI-MQTT"};
+    for (int i = 0; i < 3; i++) {
+        lv_obj_t *l = mk_lbl(card, specs[i], L_FONT_NUM, c->text_secondary);
+        if (l) lv_obj_align(l, LV_ALIGN_TOP_RIGHT, 0, i * 13);
     }
 
-    // 分隔细线 (标签印刷的横线)
-    mk_block(card, 0, 26, 204, 2, c->border);
+    // ── 分隔细线 (实物标签的印刷横线) ──
+    mk_block(card, 0, 40, 204, 2, c->border);
 
-    // ── 容量式大字: 打印进度当作盘容量读数 ──
+    // ── 左侧容量式大字区: 打印进度当盘容量读数 ──
     s_pct_lbl = mk_lbl(card, "--%", L_FONT_NUM_HUGE, c->text_primary);
-    if (s_pct_lbl) lv_obj_align(s_pct_lbl, LV_ALIGN_TOP_RIGHT, 0, 32);
+    if (s_pct_lbl) lv_obj_set_pos(s_pct_lbl, 0, 46);
+    lv_obj_t *cap = mk_lbl(card, "PRINT PROGRESS", L_FONT_NUM, c->text_secondary);
+    if (cap) lv_obj_set_pos(cap, 0, 96);
+    s_state_lbl = mk_lbl(card, L_CONNECTING, L_FONT_TEXT, c->text_secondary);
+    if (s_state_lbl) lv_obj_set_pos(s_state_lbl, 0, 110);
 
-    // ── 规格表: 名称左对齐 + 数值右对齐 (SSD 标签的规格印刷区) ──
+    // ── 右侧印刷区: 反白条码框 + 二维码装饰 + 序列号小字 ──
+    lv_obj_t *bc_box = mk_block(card, 104, 46, 72, 24, print_w);
+    if (bc_box) {
+        // 白底黑条纹 (实物 S/N 条码, 黑条画在标签色上)
+        static const uint8_t bc_w[] = {4, 2, 2, 3, 2, 5, 3, 2, 2, 3, 2, 4};
+        int bx = 4;
+        for (int i = 0; i < (int)(sizeof(bc_w) / sizeof(bc_w[0])); i++) {
+            if (!mk_block(bc_box, bx, 3, bc_w[i], 18, c->card_bg)) break;
+            bx += bc_w[i] + 2;
+        }
+    }
+    // 二维码装饰 (三个定位角 + 中心点, 实物标签右侧 QR 位)
+    lv_obj_t *qr = mk_block(card, 182, 46, 22, 22, print_w);
+    if (qr) {
+        mk_block(qr, 2, 2, 6, 6, c->card_bg);
+        mk_block(qr, 14, 2, 6, 6, c->card_bg);
+        mk_block(qr, 2, 14, 6, 6, c->card_bg);
+        mk_block(qr, 9, 9, 4, 4, c->card_bg);
+    }
+    lv_obj_t *sn1 = mk_lbl(card, "S/N BMBU-MON-25", L_FONT_NUM, c->text_secondary);
+    if (sn1) lv_obj_set_pos(sn1, 104, 74);
+    lv_obj_t *sn2 = mk_lbl(card, "970823 624339", L_FONT_NUM, c->text_secondary);
+    if (sn2) lv_obj_set_pos(sn2, 104, 88);
+    lv_obj_t *sn3 = mk_lbl(card, "MADE IN CHINA", L_FONT_NUM, c->text_secondary);
+    if (sn3) lv_obj_set_pos(sn3, 104, 102);
+
+    // ── 规格表: 名称左对齐 + 数值右对齐 (实物标签中部规格印刷区) ──
     // 数值列右对齐: 宽度变化向左扩展, 不会撞到名称列
     memset(s_row_lbl, 0, sizeof(s_row_lbl));
     memset(s_row_val, 0, sizeof(s_row_val));
     const char *row_names[5] = {L_NOZZLE, L_BED, L_CHAMBER, L_LAYER, L_REMAIN};
     for (int i = 0; i < 5; i++) {
-        int y = 96 + i * 24;
+        int y = 128 + i * 20;
         char buf[32];
         snprintf(buf, sizeof(buf), "%s %s", ICO(s_row_cmp[i]), row_names[i]);
         s_row_lbl[i] = mk_lbl(card, buf, L_FONT_TEXT, c->text_secondary);
@@ -171,15 +191,8 @@ static void build_page0(void) {
         if (s_row_val[i]) lv_obj_align(s_row_val[i], LV_ALIGN_TOP_RIGHT, 0, y);
     }
 
-    // ── 底部条码装饰 + 序列号 (SSD 标签的条形码区) ──
-    static const uint8_t bc_w[] = {6,2,2,4,2,6,4,2,2,2,8,2,4,2,2,6,2,4};
-    int bx = 0;
-    for (int i = 0; i < (int)(sizeof(bc_w) / sizeof(bc_w[0])); i++) {
-        if (!mk_block(card, bx, 212, bc_w[i], 16, c->text_primary)) break;
-        bx += bc_w[i] + 2;
-    }
-    lv_obj_t *sn = mk_lbl(card, "S/N BMBU-MON-25", L_FONT_NUM, c->text_secondary);
-    if (sn) lv_obj_align(sn, LV_ALIGN_TOP_RIGHT, 0, 216);
+    // ── 标签底缘白色横条 (实物标签底部的白色认证条带) ──
+    mk_block(card, 0, 228, 204, 2, print_w);
 }
 
 // ---------------------------------------------------------------------------
@@ -200,7 +213,9 @@ static void build_page1(void) {
     lv_obj_set_style_pad_all(card, 10, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    mk_lbl(card, LV_SYMBOL_SD_CARD " " L_AMS " SMART", L_FONT_TEXT_BIG, c->accent);
+    mk_lbl(card, LV_SYMBOL_SD_CARD " " L_AMS " SMART", L_FONT_TEXT_BIG, c->text_primary);
+    // 金色分隔线 (标签印刷强调线, 呼应螺丝/金手指)
+    mk_block(card, 0, 24, 204, 2, c->accent);
 
     memset(s_ams_chip, 0, sizeof(s_ams_chip));
     memset(s_ams_lbl, 0, sizeof(s_ams_lbl));
@@ -297,7 +312,9 @@ void style_ssd_build(void) {
     lv_obj_set_size(footer, 240, 30);
     lv_obj_set_style_bg_color(footer, lv_color_hex(c->footer_bg), 0);
     lv_obj_set_style_radius(footer, 0, 0);
-    lv_obj_set_style_border_width(footer, 0, 0);
+    lv_obj_set_style_border_width(footer, 1, 0);
+    lv_obj_set_style_border_color(footer, lv_color_hex(c->border), 0);
+    lv_obj_set_style_border_side(footer, LV_BORDER_SIDE_TOP, 0);
     lv_obj_set_style_pad_all(footer, 4, 0);
     lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -335,6 +352,22 @@ void style_ssd_build(void) {
         if (i == s_page) lv_obj_clear_flag(s_card[i], LV_OBJ_FLAG_HIDDEN);
         else             lv_obj_add_flag(s_card[i], LV_OBJ_FLAG_HIDDEN);
     }
+
+    // ── 盘面装饰 (最后创建压最上层): 四角金铜螺丝 + 右缘 SATA 金手指 ──
+    const uint32_t screw_dark = (c->accent & 0xFEFEFE) >> 1;   // 暗铜一档
+    static const int sx[4] = {3, 229, 3, 229};
+    static const int sy[4] = {3, 3, 309, 309};
+    for (int i = 0; i < 4; i++) {
+        lv_obj_t *sc = mk_block(s_scr, sx[i], sy[i], 8, 8, c->accent);
+        if (sc) {
+            lv_obj_set_style_radius(sc, LV_RADIUS_CIRCLE, 0);
+            lv_obj_set_style_border_width(sc, 2, 0);
+            lv_obj_set_style_border_color(sc, lv_color_hex(screw_dark), 0);
+        }
+    }
+    // 金手指两截触点 (实物 SATA 连接器分两段, 卡片右缘 232 之外的空隙)
+    for (int i = 0; i < 10; i++) mk_block(s_scr, 233, 70 + i * 10, 7, 6, c->accent);
+    for (int i = 0; i < 7;  i++) mk_block(s_scr, 233, 174 + i * 10, 7, 6, c->accent);
 }
 
 // ---------------------------------------------------------------------------
@@ -376,14 +409,13 @@ void style_ssd_update(void) {
             lv_label_set_text(s_pct_lbl, buf);
         }
 
-        // 状态徽章: 背景色 = 状态语义色, 文字色按背景亮度自动取黑/白
-        if (s_badge && s_badge_lbl) {
-            uint32_t bgc = conn ? state_color(st->state, c) : c->error;
+        // 状态文字: 颜色随打印状态语义变化 (断连显示正在连接)
+        if (s_state_lbl) {
+            uint32_t col = conn ? state_color(st->state, c) : c->error;
             const char *txt = conn ? state_text(st->state) : L_CONNECTING;
-            if (strcmp(lv_label_get_text(s_badge_lbl), txt) != 0)
-                lv_label_set_text(s_badge_lbl, txt);
-            lv_obj_set_style_bg_color(s_badge, lv_color_hex(bgc), 0);
-            lv_obj_set_style_text_color(s_badge_lbl, lv_color_hex(ui_theme_on_color(bgc)), 0);
+            if (strcmp(lv_label_get_text(s_state_lbl), txt) != 0)
+                lv_label_set_text(s_state_lbl, txt);
+            lv_obj_set_style_text_color(s_state_lbl, lv_color_hex(col), 0);
         }
 
         // 规格表数值列

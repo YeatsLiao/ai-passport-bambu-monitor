@@ -200,7 +200,7 @@ CW2017 电量计挂 I2C 总线（地址 0x63），顶栏右侧显示 `BAT:xx%`�
 | `STYLE_INDUSTRIAL` | style_industrial.c | 硬核机房工控风 |
 | `STYLE_NEON` | style_neon.c | 极简霓虹低饱和极客风 |
 | `STYLE_PIXEL` | style_pixel.c | 像素机器人风（ai-passport 官网） |
-| `STYLE_SSD` | style_ssd.c | 固态硬盘标签风（2.5 寸 SSD 盘面） |
+| `STYLE_SSD` | style_ssd.c | 固态硬盘标签风（黑标签白印+金铜螺丝+SATA 金手指） |
 | `STYLE_F1` | style_f1.c | F1 维修墙风（碳黑 + F1 红 + 计时塔） |
 
 所有风格均使用 2 页分页：

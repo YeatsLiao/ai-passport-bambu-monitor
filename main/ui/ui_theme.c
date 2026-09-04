@@ -147,20 +147,20 @@ static const ui_theme_colors_t theme_pixel = {
 };
 
 #elif CFG_UI_STYLE == STYLE_SSD
-// 风格8: 2.5 寸固态硬盘标签风 — 整机壳子与 SSD 高度相似, UI 做成盘面:
-// 深枪灰铝壳 (背景/端盖) + 标签贴纸白卡片 + 印刷黑字 + 盘面活动指示灯绿
+// 风格8: 2.5 寸固态硬盘标签风 — 参照实物盘面 (黑色盘身 + 黑色标签白字印刷):
+// 盘身哑光黑 + 黑标签印刷白字 + 金铜螺丝/SATA 金手指强调 + 活动指示灯绿
 static const ui_theme_colors_t theme_ssd = {
-    .bg            = 0x2E3338,  // 深枪灰铝壳
-    .card_bg       = 0xF3F2ED,  // 标签贴纸白
-    .header_bg     = 0x1D2125,  // 顶部金属端盖 (比壳更深)
-    .footer_bg     = 0x1D2125,  // 底部金属端盖
-    .text_primary  = 0x212428,  // 标签印刷黑
-    .text_secondary= 0x767B80,  // 印刷灰 (辅助小字)
-    .accent        = 0x1467B3,  // 标签蓝 (SSD 品牌色)
+    .bg            = 0x0C0C0E,  // 盘身哑光黑
+    .card_bg       = 0x161618,  // 黑色标签 (白字印刷)
+    .header_bg     = 0x0C0C0E,  // 盘身一体黑 (实物无端盖分色)
+    .footer_bg     = 0x0C0C0E,
+    .text_primary  = 0xF2F2F2,  // 标签印刷白
+    .text_secondary= 0x8C8F94,  // 印刷灰 (辅助小字)
+    .accent        = 0xC9A227,  // 金铜 (螺丝/金手指/分隔强调)
     .success       = 0x35C759,  // 活动指示灯绿
-    .warning       = 0xE0A800,  // 黄
-    .error         = 0xD64541,  // 红
-    .border        = 0x565B60,  // 金属中灰 (描边/分隔线)
+    .warning       = 0xFFD300,  // 黄
+    .error         = 0xFF4D3D,  // 红
+    .border        = 0x3A3D42,  // 盘身暗灰 (描边/分隔线)
     .gauge_nozzle  = 0xD64541,
     .gauge_bed     = 0x1467B3,
     .gauge_chamber = 0x8A5CC0,
