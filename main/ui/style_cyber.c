@@ -279,7 +279,10 @@ void style_cyber_build(void) {
     lv_obj_set_size(footer, 240, 30);
     lv_obj_set_style_bg_color(footer, lv_color_hex(c->footer_bg), 0);
     lv_obj_set_style_radius(footer, 0, 0);
-    lv_obj_set_style_border_width(footer, 0, 0);
+    // 深底风格 footer 与背景同色, 加 1px 冰蓝顶边线与卡片呼应, 底部不显空
+    lv_obj_set_style_border_width(footer, 1, 0);
+    lv_obj_set_style_border_color(footer, lv_color_hex(c->border), 0);
+    lv_obj_set_style_border_side(footer, LV_BORDER_SIDE_TOP, 0);
     lv_obj_set_style_pad_all(footer, 4, 0);
     lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -337,6 +340,8 @@ void style_cyber_update(void) {
         if (soc >= 0) snprintf(buf, sizeof(buf), "%s %d%%", ui_theme_battery_icon(soc), soc);
         else          snprintf(buf, sizeof(buf), "%s --", ui_theme_battery_icon(-1));
         lv_label_set_text(s_bat_lbl, buf);
+        // 图标颜色随电量分档 (满电绿 / 中低黄 / 低电红), 由实时数据驱动
+        lv_obj_set_style_text_color(s_bat_lbl, lv_color_hex(ui_theme_battery_color(soc)), 0);
     }
 
     // ── Page 0: HUD + 霓虹行 ──

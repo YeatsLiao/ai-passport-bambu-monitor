@@ -192,7 +192,7 @@ static void build_page0(void) {
     s_card[0] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 消除底部背景空带
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, c->radius + 2, 0);
     lv_obj_set_style_border_width(card, 0, 0);
@@ -244,7 +244,7 @@ static void build_page0(void) {
     for (int i = 0; i < 4; i++) {
         int cmp = s_cell_cmp[i];
         int x = (i % 2) * 104;
-        int y = 118 + (i / 2) * 42;
+        int y = 128 + (i / 2) * 50;   // 卡片加高后网格重排, 底部不留大段空白
         char buf[48];
 
         // 第一行: 图标 + 本地化名称
@@ -283,7 +283,7 @@ static void build_page1(void) {
     s_card[1] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 消除底部背景空带
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, c->radius + 2, 0);
     lv_obj_set_style_border_width(card, 0, 0);
@@ -297,7 +297,7 @@ static void build_page1(void) {
 
     // ── 4 个 AMS 料槽格子 (2x2) ──
     const int sx[4] = {0, 104, 0, 104};
-    const int sy[4] = {30, 30, 98, 98};
+    const int sy[4] = {32, 32, 102, 102};
     for (int i = 0; i < 4; i++) {
         lv_obj_t *box = mk_slot(card, sx[i], sy[i], 100, 62);
         s_ams_box[i] = box;
@@ -320,7 +320,7 @@ static void build_page1(void) {
     }
 
     // ── Ext 外挂料槽 (底部宽格子) ──
-    lv_obj_t *box = mk_slot(card, 0, 166, 204, 44);
+    lv_obj_t *box = mk_slot(card, 0, 174, 204, 48);   // 旧布局 y166+h44=210 超出内容区被裁 8px
     s_ams_box[4] = box;
     s_ams_type[4] = NULL;
     s_ams_rem[4] = NULL;
@@ -442,6 +442,8 @@ void style_bambu_update(void) {
         if (soc >= 0) snprintf(buf, sizeof(buf), "%s %d%%", ui_theme_battery_icon(soc), soc);
         else          snprintf(buf, sizeof(buf), "%s --", ui_theme_battery_icon(-1));
         lv_label_set_text(s_bat_lbl, buf);
+        // 图标颜色随电量分档 (满电绿 / 中低黄 / 低电红), 由实时数据驱动
+        lv_obj_set_style_text_color(s_bat_lbl, lv_color_hex(ui_theme_battery_color(soc)), 0);
     }
 
     // ── Page 0: 仪表 + 格子 ──

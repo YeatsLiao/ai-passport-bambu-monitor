@@ -476,6 +476,8 @@ void style_sheikah_update(void) {
         if (soc >= 0) snprintf(buf, sizeof(buf), "%s %d%%", ui_theme_battery_icon(soc), soc);
         else          snprintf(buf, sizeof(buf), "%s --", ui_theme_battery_icon(-1));
         lv_label_set_text(s_bat_lbl, buf);
+        // 图标颜色随电量分档 (满电绿 / 中低黄 / 低电红), 由实时数据驱动
+        lv_obj_set_style_text_color(s_bat_lbl, lv_color_hex(ui_theme_battery_color(soc)), 0);
     }
 
     bool conn = bambu_mqtt_connected();

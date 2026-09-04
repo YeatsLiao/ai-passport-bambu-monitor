@@ -45,5 +45,7 @@ void ui_theme_tray_swatch(lv_obj_t *swatch, const bambu_ams_tray_t *t);
 const char *ui_theme_state_icon(bambu_print_state_t s, bool connected);
 // 电量百分比 -> 电池图标 (四档)
 const char *ui_theme_battery_icon(int soc);
+// 电量百分比 -> 电池配色 (随实时数据分档: 无数据灰 / <20 红 / <50 黄 / 其余绿)
+uint32_t ui_theme_battery_color(int soc);
 // 组件编号 -> 固定图标 (编号见 config.h: 1喷嘴 2热床 3腔体 4层数 5进度 6剩余 7状态 8速度 9AMS)
 const char *ui_theme_component_icon(int cmp);

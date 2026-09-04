@@ -276,6 +276,16 @@ const char *ui_theme_battery_icon(int soc) {
     return LV_SYMBOL_BATTERY_FULL;
 }
 
+// 电池配色随实时电量分档 (对齐实机参考: 满电绿 / 中低黄 / 低电红, 无数据灰)。
+// 各风格取自己的语义色: pixel 的满电即官网草地绿, industrial 即工控绿。
+uint32_t ui_theme_battery_color(int soc) {
+    const ui_theme_colors_t *c = ui_theme_get_colors();
+    if (soc < 0)  return c->text_secondary;
+    if (soc < 20) return c->error;
+    if (soc < 50) return c->warning;
+    return c->success;
+}
+
 const char *ui_theme_component_icon(int cmp) {
     // 编号与各 style_*.c 的 CMP_* 宏、config.h 注释一致
     switch (cmp) {
