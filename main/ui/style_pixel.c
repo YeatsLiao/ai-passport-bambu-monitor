@@ -49,7 +49,12 @@ static const char *TAG __attribute__((unused)) = "style_pixel";
 #define PX_SCREEN     0xB9F3FF       // 机器人屏幕脸
 #define PX_EYE        0x294B7A       // 机器人眼睛
 
-#ifndef CFG_COMPONENT_ORDER
+// 组件顺序: config.h 定义 CFG_COMPONENT_ORDER (如 {5,4,1,2,6,8}) 则覆盖默认值。
+// 注意两个分支都要定义 s_order: 上面写法若漏掉 #else 分支, 一旦用户定义了
+// CFG_COMPONENT_ORDER 就会报 s_order undeclared (实测踩过)。
+#ifdef CFG_COMPONENT_ORDER
+static const int s_order[] = CFG_COMPONENT_ORDER;
+#else
 static const int s_default_order[] = {5, 4, 1, 2, 6, 8};
 #define s_order s_default_order
 #endif

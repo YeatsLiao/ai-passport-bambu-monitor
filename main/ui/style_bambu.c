@@ -34,7 +34,11 @@ static const char *TAG __attribute__((unused)) = "style_bambu";
 // 组件图标统一由 ui_theme 映射, 保证各风格语义一致
 #define ICO(cmp) ui_theme_component_icon(cmp)
 
-#ifndef CFG_COMPONENT_ORDER
+// 组件顺序: config.h 定义 CFG_COMPONENT_ORDER (如 {5,4,1,2,6,8}) 则覆盖默认值。
+// 两个分支都要能解析出 s_order, 否则用户一旦定义该宏就报 undeclared (实测踩过)。
+#ifdef CFG_COMPONENT_ORDER
+static const int s_order[] = CFG_COMPONENT_ORDER;
+#else
 static const int s_default_order[] = {5, 4, 1, 2, 6, 8};
 #define s_order s_default_order
 #endif
