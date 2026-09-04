@@ -23,6 +23,19 @@ static const char *TAG __attribute__((unused)) = "style_industrial";
 #define HAS_AMS  1
 #define LED_SEG_COUNT  20          // LED 进度条段数
 
+#define CMP_NOZZLE  1
+#define CMP_BED     2
+#define CMP_CHAMBER 3
+#define CMP_LAYER   4
+#define CMP_PERCENT 5
+#define CMP_REMAIN  6
+#define CMP_STATE   7
+#define CMP_SPEED   8
+#define CMP_AMS     9
+
+// 组件图标统一由 ui_theme 映射, 保证各风格语义一致
+#define ICO(cmp) ui_theme_component_icon(cmp)
+
 // ── UI 对象 ──
 static int s_page = 0;
 static int s_total_pages = 1 + HAS_AMS;
@@ -62,18 +75,43 @@ static lv_obj_t *mk_lbl(lv_obj_t *parent, const char *text,
     return l;
 }
 
-// LED 状态灯 (小圆点, 默认熄灭色)
-static lv_obj_t *mk_led(lv_obj_t *parent, int x, int y) {
-    const ui_theme_colors_t *c = ui_theme_get_colors();
-    lv_obj_t *d = lv_obj_create(parent);
+// LED 状态灯 (lv_led 组件: 熄灭时内部自动混黑, 点亮时按设定色发光)
+//
+// lv_led 的绘制是两次 lv_color_mix: 先用样式 bg_color 的亮度混合 led 色, 再按
+// brightness 混黑。把 bg_color 固定成白色可让第一步不损失原色, 最终明暗完全交给
+// lv_led_set_brightness —— 这样"熄灭"是真的变暗, 而不是换成另一种颜色。
+static lv_obj_t *mk_led(lv_obj_t *parent, int x, int y, uint32_t color) {
+    if (!parent) return NULL;
+    lv_obj_t *d = lv_led_create(parent);
     if (!d) return NULL;
     lv_obj_set_pos(d, x, y);
-    lv_obj_set_size(d, 8, 8);
+    lv_obj_set_size(d, 8, 8);          // lv_led 无 set_size 接口, 走通用对象接口
     lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_radius(d, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_border_width(d, 0, 0);
-    lv_obj_set_style_bg_color(d, lv_color_hex(c->border), 0);
+    lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_color(d, lv_color_white(), 0);
+    lv_obj_set_style_shadow_width(d, 8, 0);   // 光晕宽度由 lv_led 按亮度缩放
+    lv_obj_set_style_shadow_spread(d, 0, 0);
+    lv_obj_set_style_shadow_opa(d, LV_OPA_50, 0);
+    lv_led_set_color(d, lv_color_hex(color));
+    lv_led_off(d);
     return d;
+}
+
+// lv_led_set_color 会无条件标脏, 20 段每秒重设代价可观; 颜色未变则跳过
+static void led_set_color(lv_obj_t *led, uint32_t color) {
+    if (!led) return;
+    lv_color_t want = lv_color_hex(color);
+    if (lv_color_eq(lv_led_get_color(led), want)) return;
+    lv_led_set_color(led, want);
+}
+
+// 设定状态灯颜色并点亮
+static void led_on(lv_obj_t *led, uint32_t color) {
+    if (!led) return;
+    led_set_color(led, color);
+    lv_led_on(led);
 }
 
 static const char *state_text(bambu_print_state_t s) {
@@ -94,12 +132,30 @@ static uint32_t state_color(bambu_print_state_t s, const ui_theme_colors_t *c) {
     return c->text_secondary;
 }
 
-// 加热状态灯色: 目标温度>0 且当前低于目标 5°C 以上 = 黄色(加热中), 否则绿色
+// 加热中灯色 (调用前已确保 target > 0): 低于目标 5°C 以上 = 黄色(升温中), 否则绿色(已到温)
 static uint32_t heat_led_color(float cur, float target, const ui_theme_colors_t *c) {
-    if (target > 0.0f && cur < target - 5.0f) return c->warning;
-    if (target > 0.0f) return c->success;
-    return c->text_secondary;
+    if (cur < target - 5.0f) return c->warning;
+    return c->success;
 }
+
+// 组件编号 -> 本地化短名 (中英文由 ui_lang.h 的 CFG_LANG 决定)
+static const char *cmp_name(int cmp) {
+    switch (cmp) {
+        case CMP_NOZZLE:  return L_NOZZLE;
+        case CMP_BED:     return L_BED;
+        case CMP_CHAMBER: return L_CHAMBER;
+        case CMP_LAYER:   return L_LAYER;
+        case CMP_PERCENT: return "%";
+        case CMP_REMAIN:  return L_REMAIN;
+        case CMP_STATE:   return L_STATE;
+        case CMP_SPEED:   return L_SPEED;
+        case CMP_AMS:     return L_AMS;
+        default:          return "";
+    }
+}
+
+// 数据行对应的组件 (build/update 共用, 保证图标与内容一致)
+static const int s_row_cmp[5] = {CMP_NOZZLE, CMP_BED, CMP_CHAMBER, CMP_LAYER, CMP_STATE};
 
 // ---------------------------------------------------------------------------
 // Page 0: LED 段式进度条 + 大字百分比 + 数据行网格
@@ -119,37 +175,47 @@ static void build_page0(void) {
     lv_obj_set_style_pad_all(card, 8, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    // ── LED 段式进度条 (20 段, 9x14, 间隔 1px) ──
+    // ── LED 段式进度条 (20 段 lv_led, 9x14, 间隔 1px) ──
+    // 工控风用方角 (radius 1) 且关掉光晕: 20 个发光对象每秒重绘在无 PSRAM 的
+    // C3 上代价太高, 只给 5 个状态灯保留光晕。
     memset(s_led_seg, 0, sizeof(s_led_seg));
     for (int i = 0; i < LED_SEG_COUNT; i++) {
-        lv_obj_t *seg = lv_obj_create(card);
+        lv_obj_t *seg = lv_led_create(card);
         if (!seg) continue;
         lv_obj_set_pos(seg, i * 10, 4);
         lv_obj_set_size(seg, 9, 14);
         lv_obj_remove_flag(seg, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_style_radius(seg, 1, 0);
         lv_obj_set_style_border_width(seg, 0, 0);
-        lv_obj_set_style_bg_color(seg, lv_color_hex(c->border), 0);   // 熄灭
+        lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
+        lv_obj_set_style_bg_color(seg, lv_color_white(), 0);   // 明暗交给亮度控制
+        lv_obj_set_style_shadow_width(seg, 0, 0);
+        lv_led_set_color(seg, lv_color_hex(c->success));
+        lv_led_off(seg);                                        // 初始全熄灭
         s_led_seg[i] = seg;
     }
 
     // ── 大字百分比 (居中) + 剩余时间 (右侧) ──
-    s_pct_lbl = mk_lbl(card, "--%", &lv_font_montserrat_48, c->success);
+    s_pct_lbl = mk_lbl(card, "--%", L_FONT_NUM_HUGE, c->success);
     if (s_pct_lbl) lv_obj_align(s_pct_lbl, LV_ALIGN_TOP_MID, -20, 26);
-    s_remain_lbl = mk_lbl(card, "--", &lv_font_montserrat_14, c->text_secondary);
+    // 右对齐: 中英文宽度变化向左扩展, 不会撞到百分比
+    char rinit[32];
+    snprintf(rinit, sizeof(rinit), "%s --", ICO(CMP_REMAIN));
+    s_remain_lbl = mk_lbl(card, rinit, L_FONT_TEXT, c->text_secondary);
     if (s_remain_lbl) lv_obj_align(s_remain_lbl, LV_ALIGN_TOP_RIGHT, -4, 44);
 
     // ── 数据行网格: NOZ / BED / CHM / LAYER / STATE ──
     memset(s_row_dot, 0, sizeof(s_row_dot));
     memset(s_row_lbl, 0, sizeof(s_row_lbl));
-    const char *titles[5] = {L_NOZZLE, L_BED, L_CHAMBER, L_LAYER, L_STATE};
-    const char *inits[5]  = {"--/--°C", "--/--°C", "--°C", "--/--", L_CONNECTING};
+    // "%-4s" 那类空格对齐对中文无效 (CJK 按字形宽度算), 统一用 "图标 + 名称 + 值"
+    const char *inits[5] = {"--/--°C", "--/--°C", "--°C", "--/--", L_CONNECTING};
     for (int i = 0; i < 5; i++) {
-        s_row_dot[i] = mk_led(card, 2, 96 + i * 24);
-        char buf[48];
-        snprintf(buf, sizeof(buf), "%-4s %s", titles[i], inits[i]);
-        // 标题用次要色, 值用主色 —— 简化为单标签
-        s_row_lbl[i] = mk_lbl(card, buf, &lv_font_montserrat_14, c->text_primary);
+        s_row_dot[i] = mk_led(card, 2, 96 + i * 24, c->border);
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%s %s %s",
+                 ICO(s_row_cmp[i]), cmp_name(s_row_cmp[i]), inits[i]);
+        // 标题与值合并为单标签, 前置 LED 灯负责状态色
+        s_row_lbl[i] = mk_lbl(card, buf, L_FONT_TEXT, c->text_primary);
         if (s_row_lbl[i]) lv_obj_set_pos(s_row_lbl[i], 16, 92 + i * 24);
     }
 }
@@ -172,7 +238,7 @@ static void build_page1(void) {
     lv_obj_set_style_pad_all(card, 8, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    mk_lbl(card, L_AMS, &lv_font_montserrat_20, c->accent);
+    mk_lbl(card, LV_SYMBOL_SD_CARD " " L_AMS, L_FONT_TEXT_BIG, c->accent);
 
     memset(s_ams_chip, 0, sizeof(s_ams_chip));
     memset(s_ams_lbl, 0, sizeof(s_ams_lbl));
@@ -189,15 +255,16 @@ static void build_page1(void) {
             lv_obj_set_style_radius(chip, 2, 0);
             lv_obj_set_style_border_width(chip, 1, 0);
             lv_obj_set_style_border_color(chip, lv_color_hex(c->border), 0);
-            lv_obj_set_style_bg_color(chip, lv_color_hex(0x888888), 0);
+            // 无数据时的占位色用主题次要文字色 (收到 MQTT 数据后被覆盖)
+            lv_obj_set_style_bg_color(chip, lv_color_hex(c->text_secondary), 0);
         }
         s_ams_chip[i] = chip;
 
         // 文字: "#1 PLA 54%"
         char buf[32];
         if (i < 4) snprintf(buf, sizeof(buf), "#%d %s", i + 1, L_EMPTY);
-        else       snprintf(buf, sizeof(buf), "Ext %s", L_EMPTY);
-        s_ams_lbl[i] = mk_lbl(card, buf, &lv_font_montserrat_14, c->text_primary);
+        else       snprintf(buf, sizeof(buf), "%s %s", L_EXT, L_EMPTY);
+        s_ams_lbl[i] = mk_lbl(card, buf, L_FONT_TEXT, c->text_primary);
         if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 20, y);
 
         // 余量横条 (背景轨道 + lv_bar)
@@ -247,13 +314,17 @@ void style_industrial_build(void) {
     lv_obj_set_style_pad_all(header, 4, 0);
     lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, &lv_font_montserrat_14, 0xFFFFFF);
+    // 标题栏/底部栏文字颜色按各自背景亮度自动取黑/白, 不硬编码
+    const uint32_t htxt = ui_theme_on_color(c->header_bg);
+    const uint32_t ftxt = ui_theme_on_color(c->footer_bg);
+
+    lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, L_FONT_TEXT, htxt);
     if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
 
-    s_time_lbl = mk_lbl(header, "--:--", &lv_font_montserrat_14, 0xFFFFFF);
+    s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, htxt);
     if (s_time_lbl) lv_obj_align(s_time_lbl, LV_ALIGN_CENTER, 0, 0);
 
-    s_bat_lbl = mk_lbl(header, "BAT:--", &lv_font_montserrat_14, 0xFFFFFF);
+    s_bat_lbl = mk_lbl(header, LV_SYMBOL_BATTERY_FULL " --", L_FONT_SYMBOL, htxt);
     if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -4, 0);
 
     // ── 底部栏 (持久) ──
@@ -266,12 +337,12 @@ void style_industrial_build(void) {
     lv_obj_set_style_pad_all(footer, 4, 0);
     lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, &lv_font_montserrat_14, 0xFFFFFF);
+    lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, L_FONT_TEXT, ftxt);
     if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
 
     char pg[16];
     snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
-    s_pg_lbl = mk_lbl(footer, pg, &lv_font_montserrat_14, 0xFFFFFF);
+    s_pg_lbl = mk_lbl(footer, pg, L_FONT_NUM, ftxt);
     if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
 
     // ── 内容区域容器 ──
@@ -300,7 +371,7 @@ void style_industrial_build(void) {
 void style_industrial_update(void) {
     bambu_state_t *st = &g_bambu_state;
     const ui_theme_colors_t *c = ui_theme_get_colors();
-    char buf[48];
+    char buf[64];
 
     // 时间
     if (s_time_lbl) {
@@ -314,26 +385,26 @@ void style_industrial_update(void) {
         }
     }
 
-    // 电池
+    // 电池 (图标随电量四档变化)
     if (s_bat_lbl) {
         int soc = bsp_battery_soc();
-        if (soc >= 0) snprintf(buf, sizeof(buf), "BAT:%d%%", soc);
-        else          snprintf(buf, sizeof(buf), "BAT:--");
+        if (soc >= 0) snprintf(buf, sizeof(buf), "%s %d%%", ui_theme_battery_icon(soc), soc);
+        else          snprintf(buf, sizeof(buf), "%s --", ui_theme_battery_icon(-1));
         lv_label_set_text(s_bat_lbl, buf);
     }
 
     // ── Page 0: LED 条 + 大字 + 数据行 ──
     if (s_page == 0) {
-        // LED 段: 点亮 pct*20/100 段; 末端一段加白色高光 (借鉴 BambuHelper)
+        // LED 段: 点亮 pct*20/100 段; 末端一段混白做高光 (借鉴 BambuHelper)
         int lit = st->mc_percent * LED_SEG_COUNT / 100;
         for (int i = 0; i < LED_SEG_COUNT; i++) {
             if (!s_led_seg[i]) continue;
-            uint32_t col = (i < lit) ? c->success : c->border;
-            if (lit > 0 && i == lit - 1) {
-                // 末端高光: 绿色混白
-                col = ((c->success & 0xFEFEFE) + 0x7F7F7F) >> 1;
-            }
-            lv_obj_set_style_bg_color(s_led_seg[i], lv_color_hex(col), 0);
+            if (i >= lit) { lv_led_off(s_led_seg[i]); continue; }
+            uint32_t col = (i == lit - 1)
+                         ? ((c->success & 0xFEFEFE) + 0x7F7F7F) >> 1   // 末端: 绿混白
+                         : c->success;
+            led_set_color(s_led_seg[i], col);
+            lv_led_on(s_led_seg[i]);
         }
 
         if (s_pct_lbl) {
@@ -344,51 +415,73 @@ void style_industrial_update(void) {
             if (st->mc_remaining > 0) {
                 int h = st->mc_remaining / 60;
                 int m = st->mc_remaining % 60;
-                if (h > 0) snprintf(buf, sizeof(buf), "%d" L_HOUR "%02d" L_MIN, h, m);
-                else       snprintf(buf, sizeof(buf), "%d" L_MIN, m);
+                if (h > 0) snprintf(buf, sizeof(buf), "%s %d" L_HOUR "%02d" L_MIN,
+                                    ICO(CMP_REMAIN), h, m);
+                else       snprintf(buf, sizeof(buf), "%s %d" L_MIN, ICO(CMP_REMAIN), m);
             } else {
-                snprintf(buf, sizeof(buf), "--");
+                snprintf(buf, sizeof(buf), "%s --", ICO(CMP_REMAIN));
             }
             lv_label_set_text(s_remain_lbl, buf);
         }
 
-        // 数据行
+        // 数据行 (图标 + 本地化名 + 值; 前置 LED 灯反映加热/运行状态)
         if (s_row_lbl[0]) {
-            snprintf(buf, sizeof(buf), "%-4s %d/%d°C", L_NOZZLE,
+            snprintf(buf, sizeof(buf), "%s %s %d/%d°C", ICO(CMP_NOZZLE), L_NOZZLE,
                      (int)st->nozzle_temp, (int)st->nozzle_target);
             lv_label_set_text(s_row_lbl[0], buf);
         }
-        if (s_row_dot[0])
-            lv_obj_set_style_bg_color(s_row_dot[0],
-                lv_color_hex(heat_led_color(st->nozzle_temp, st->nozzle_target, c)), 0);
+        // 喷嘴/热床: 只有设了加热目标才亮灯, 冷机时熄灭 (否则灯恒亮就没有信息量了)
+        if (s_row_dot[0]) {
+            if (st->nozzle_target > 0.0f)
+                led_on(s_row_dot[0], heat_led_color(st->nozzle_temp, st->nozzle_target, c));
+            else
+                lv_led_off(s_row_dot[0]);
+        }
+
         if (s_row_lbl[1]) {
-            snprintf(buf, sizeof(buf), "%-4s %d/%d°C", L_BED,
+            snprintf(buf, sizeof(buf), "%s %s %d/%d°C", ICO(CMP_BED), L_BED,
                      (int)st->bed_temp, (int)st->bed_target);
             lv_label_set_text(s_row_lbl[1], buf);
         }
-        if (s_row_dot[1])
-            lv_obj_set_style_bg_color(s_row_dot[1],
-                lv_color_hex(heat_led_color(st->bed_temp, st->bed_target, c)), 0);
+        if (s_row_dot[1]) {
+            if (st->bed_target > 0.0f)
+                led_on(s_row_dot[1], heat_led_color(st->bed_temp, st->bed_target, c));
+            else
+                lv_led_off(s_row_dot[1]);
+        }
+
         if (s_row_lbl[2]) {
-            snprintf(buf, sizeof(buf), "%-4s %d°C", L_CHAMBER, (int)st->chamber_temp);
+            snprintf(buf, sizeof(buf), "%s %s %d°C", ICO(CMP_CHAMBER), L_CHAMBER,
+                     (int)st->chamber_temp);
             lv_label_set_text(s_row_lbl[2], buf);
         }
+        // 腔体无加热目标: 有余热 (>30°C) 时黄灯提示, 否则熄灭
+        if (s_row_dot[2]) {
+            if (st->chamber_temp > 30.0f) led_on(s_row_dot[2], c->warning);
+            else                          lv_led_off(s_row_dot[2]);
+        }
+
         if (s_row_lbl[3]) {
-            snprintf(buf, sizeof(buf), "%-4s %d/%d", L_LAYER,
+            snprintf(buf, sizeof(buf), "%s %s %d/%d", ICO(CMP_LAYER), L_LAYER,
                      st->layer_num, st->total_layer);
             lv_label_set_text(s_row_lbl[3], buf);
         }
+        // 层数灯: 只在真正逐层推进时点亮
+        if (s_row_dot[3]) {
+            if (st->state == BAMBU_STATE_RUNNING) led_on(s_row_dot[3], c->accent);
+            else                                  lv_led_off(s_row_dot[3]);
+        }
+
         if (s_row_lbl[4]) {
-            if (!bambu_mqtt_connected()) {
-                lv_label_set_text(s_row_lbl[4], L_STATE "  " L_CONNECTING);
-                if (s_row_dot[4])
-                    lv_obj_set_style_bg_color(s_row_dot[4], lv_color_hex(c->error), 0);
-            } else {
-                snprintf(buf, sizeof(buf), "%-4s %s", L_STATE, state_text(st->state));
+            if (bambu_mqtt_connected()) {
+                snprintf(buf, sizeof(buf), "%s %s %s", ui_theme_state_icon(st->state, true),
+                         L_STATE, state_text(st->state));
                 lv_label_set_text(s_row_lbl[4], buf);
-                if (s_row_dot[4])
-                    lv_obj_set_style_bg_color(s_row_dot[4],
-                        lv_color_hex(state_color(st->state, c)), 0);
+                led_on(s_row_dot[4], state_color(st->state, c));
+            } else {
+                snprintf(buf, sizeof(buf), "%s %s %s", LV_SYMBOL_WIFI, L_STATE, L_CONNECTING);
+                lv_label_set_text(s_row_lbl[4], buf);
+                led_on(s_row_dot[4], c->error);
             }
         }
     }
@@ -401,10 +494,10 @@ void style_industrial_update(void) {
             bambu_ams_tray_t *t = (i < 4) ? &st->trays[i] : &st->vt_tray;
             if (t->type[0]) {
                 if (i < 4) snprintf(buf, sizeof(buf), "#%d %s %d%%", i + 1, t->type, (int)t->remain);
-                else       snprintf(buf, sizeof(buf), "Ext %s %d%%", t->type, (int)t->remain);
+                else       snprintf(buf, sizeof(buf), "%s %s %d%%", L_EXT, t->type, (int)t->remain);
             } else {
                 if (i < 4) snprintf(buf, sizeof(buf), "#%d %s", i + 1, L_EMPTY);
-                else       snprintf(buf, sizeof(buf), "Ext %s", L_EMPTY);
+                else       snprintf(buf, sizeof(buf), "%s %s", L_EXT, L_EMPTY);
             }
             lv_label_set_text(s_ams_lbl[i], buf);
 
