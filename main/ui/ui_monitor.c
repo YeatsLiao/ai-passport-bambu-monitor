@@ -83,6 +83,13 @@ lv_obj_t *s_content_area  = NULL;   // 内容容器
     #define STYLE_CUR_PAGE    style_ssd_current_page
     #define STYLE_NEXT        style_ssd_next_page
     #define STYLE_PREV        style_ssd_prev_page
+#elif CFG_UI_STYLE == STYLE_F1
+    #define STYLE_BUILD       style_f1_build
+    #define STYLE_UPDATE      style_f1_update
+    #define STYLE_PAGE_COUNT  style_f1_page_count
+    #define STYLE_CUR_PAGE    style_f1_current_page
+    #define STYLE_NEXT        style_f1_next_page
+    #define STYLE_PREV        style_f1_prev_page
 #endif
 
 // ---------------------------------------------------------------------------

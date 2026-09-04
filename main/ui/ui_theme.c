@@ -167,6 +167,27 @@ static const ui_theme_colors_t theme_ssd = {
     .radius        = 2,         // SSD 圆角极小
 };
 
+#elif CFG_UI_STYLE == STYLE_F1
+// 风格9: F1 维修墙 (Pit Wall) 风 — 碳黑底 + F1 红边框条 + 计时塔排版
+// AMS 页做成车队积分榜: 排位号红 + 耗材色标当车队色 + 余量横条
+static const ui_theme_colors_t theme_f1 = {
+    .bg            = 0x0D0D0F,  // 碳黑
+    .card_bg       = 0x141519,  // 深碳面板
+    .header_bg     = 0x0A0A0C,  // 近黑端盖
+    .footer_bg     = 0x0A0A0C,
+    .text_primary  = 0xF2F2F2,  // 竞速白
+    .text_secondary= 0x8A8F98,  // 轮胎灰
+    .accent        = 0xE10600,  // F1 红
+    .success       = 0x27C46F,  // 旗门绿
+    .warning       = 0xFFD300,  // 旗黄 (计时屏积分色)
+    .error         = 0xFF4136,  // 红旗
+    .border        = 0x2A2D33,  // 碳纤格纹灰
+    .gauge_nozzle  = 0xFF4D2E,
+    .gauge_bed     = 0x2778C9,
+    .gauge_chamber = 0x8E6BC7,
+    .radius        = 2,         // 赛事面板几乎全直角
+};
+
 #else
 // 默认使用 Bambu 风格
 static const ui_theme_colors_t theme_bambu = {
@@ -205,6 +226,8 @@ const ui_theme_colors_t *ui_theme_get_colors(void) {
     return &theme_pixel;
 #elif CFG_UI_STYLE == STYLE_SSD
     return &theme_ssd;
+#elif CFG_UI_STYLE == STYLE_F1
+    return &theme_f1;
 #else
     return &theme_bambu;
 #endif
@@ -227,6 +250,8 @@ const char *ui_theme_style_name(void) {
     return "Pixel";
 #elif CFG_UI_STYLE == STYLE_SSD
     return "SSD";
+#elif CFG_UI_STYLE == STYLE_F1
+    return "F1";
 #else
     return "Unknown";
 #endif

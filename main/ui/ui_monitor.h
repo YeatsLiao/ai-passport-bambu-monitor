@@ -78,4 +78,11 @@ void rebuild_page(void);
     int  style_ssd_current_page(void);
     void style_ssd_next_page(void);
     void style_ssd_prev_page(void);
+#elif CFG_UI_STYLE == STYLE_F1
+    void style_f1_build(void);
+    void style_f1_update(void);
+    int  style_f1_page_count(void);
+    int  style_f1_current_page(void);
+    void style_f1_next_page(void);
+    void style_f1_prev_page(void);
 #endif
