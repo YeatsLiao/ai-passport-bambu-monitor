@@ -91,7 +91,7 @@ static void build_page0(void) {
     s_card[0] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_border_color(card, lv_color_hex(c->border), 0);
     lv_obj_set_style_border_width(card, 1, 0);
@@ -141,7 +141,7 @@ static void build_page0(void) {
         if (s_lbl[i]) lv_obj_set_pos(s_lbl[i], 0, y);
 
         if (cmp == CMP_PERCENT) {
-            y += 36;
+            y += 42;   // 卡片加高后行距拉开
             lv_obj_t *bar_bg = lv_obj_create(card);
             if (!bar_bg) continue;
             lv_obj_set_pos(bar_bg, 0, y);
@@ -158,9 +158,9 @@ static void build_page0(void) {
             lv_obj_set_style_radius(bar, 5, 0);
             lv_bar_set_range(bar, 0, 100);
             s_bar = bar;
-            y += 20;
+            y += 22;
         } else {
-            y += 26;
+            y += 32;
         }
     }
 }
@@ -175,7 +175,7 @@ static void build_page1(void) {
     s_card[1] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_border_color(card, lv_color_hex(c->border), 0);
     lv_obj_set_style_border_width(card, 1, 0);
@@ -189,7 +189,7 @@ static void build_page1(void) {
         lv_obj_t *sw = lv_obj_create(card);
         if (sw) {
             lv_obj_set_size(sw, 14, 14);
-            lv_obj_set_pos(sw, 0, 36 + i * 26 + 3);
+            lv_obj_set_pos(sw, 0, 40 + i * 36 + 3);
             lv_obj_remove_flag(sw, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
             lv_obj_set_style_radius(sw, 3, 0);
             lv_obj_set_style_border_width(sw, 1, 0);
@@ -200,7 +200,7 @@ static void build_page1(void) {
         s_ams_swatch[i] = sw;
 
         s_ams_lbl[i] = mk_lbl(card, L_EMPTY, L_FONT_TEXT, c->text_secondary);
-        if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 20, 36 + i * 26);
+        if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 20, 40 + i * 36);
     }
 }
 

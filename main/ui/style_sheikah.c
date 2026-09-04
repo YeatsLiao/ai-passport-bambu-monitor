@@ -205,7 +205,7 @@ static void build_page0(void) {
     s_card[0] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, c->radius, 0);
     lv_obj_set_style_border_width(card, 1, 0);
@@ -214,8 +214,8 @@ static void build_page0(void) {
     lv_obj_set_style_pad_all(card, 8, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    // 内容区 208x202, 眼心放在水平正中、上半区
-    const int eye_cx = 104, eye_cy = 54;
+    // 内容区 208x236, 眼心放在水平正中、上半区
+    const int eye_cx = 104, eye_cy = 58;
 
     // ── 外侧细线装饰环 (纯装饰, 不参与数据) ──
     lv_obj_t *ring = lv_obj_create(card);
@@ -270,7 +270,7 @@ static void build_page0(void) {
 
     // ── 状态行 (眼下方居中) ──
     s_state_lbl = mk_lbl(card, LV_SYMBOL_WIFI " " L_CONNECTING, L_FONT_TEXT, c->text_secondary);
-    if (s_state_lbl) lv_obj_align(s_state_lbl, LV_ALIGN_TOP_MID, 0, 112);
+    if (s_state_lbl) lv_obj_align(s_state_lbl, LV_ALIGN_TOP_MID, 0, 118);
 
     // ── 4 行菱形符文, 串在一条竖直发光线上 ──
     // 百分比在眼里、状态在中区, 所以跳过它们和 AMS, 其余按配置顺序取前 4 项
@@ -287,8 +287,8 @@ static void build_page0(void) {
     memset(s_rune_lbl, 0, sizeof(s_rune_lbl));
 
     const int rune_cx = 8;            // 菱形节点中心 x (留足旋转后的对角半径)
-    const int rune_y0 = 137;          // 首行菱形中心 y
-    const int rune_dy = 18;           // 行距
+    const int rune_y0 = 148;          // 首行菱形中心 y (卡片加高后下移拉开)
+    const int rune_dy = 26;           // 行距 (加高后拉大)
 
     lv_obj_t *wire = lv_obj_create(card);
     if (wire) {
@@ -326,7 +326,7 @@ static void build_page1(void) {
     s_card[1] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, c->radius, 0);
     lv_obj_set_style_border_width(card, 1, 0);
@@ -342,7 +342,7 @@ static void build_page1(void) {
     memset(s_ams_bar, 0, sizeof(s_ams_bar));
 
     for (int i = 0; i < 5; i++) {
-        int y = 34 + i * 34;
+        int y = 40 + i * 40;   // 卡片加高后行距拉开
 
         // 菱形色片: 颜色由 MQTT tray_color 实时驱动 (透明料走空心描边分支)
         s_ams_chip[i] = mk_rune(card, 10, y + 9, 16,

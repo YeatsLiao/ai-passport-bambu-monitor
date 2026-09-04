@@ -147,7 +147,7 @@ static void build_page0(void) {
     s_card[0] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, 0, 0);                 // 赛博风: 直角
     lv_obj_set_style_border_width(card, 0, 0);
@@ -185,12 +185,12 @@ static void build_page0(void) {
         L_SPEED " -- --%", L_REMAIN " --"
     };
     for (int i = 0; i < 5; i++) {
-        s_row_bar[i] = mk_neon_bar(card, 2, 116 + i * 20);
+        s_row_bar[i] = mk_neon_bar(card, 2, 122 + i * 24);   // 卡片加高后行距拉开
         char init[48];
         snprintf(init, sizeof(init), "%s %s", ICO(s_row_cmp[i]), inits[i]);
         s_row_lbl[i] = mk_lbl(card, init, L_FONT_TEXT,
                               (i < 3) ? c->text_primary : c->text_secondary);
-        if (s_row_lbl[i]) lv_obj_set_pos(s_row_lbl[i], 14, 112 + i * 20);
+        if (s_row_lbl[i]) lv_obj_set_pos(s_row_lbl[i], 14, 118 + i * 24);
     }
 }
 
@@ -204,7 +204,7 @@ static void build_page1(void) {
     s_card[1] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, 0, 0);
     lv_obj_set_style_border_width(card, 0, 0);
@@ -217,7 +217,7 @@ static void build_page1(void) {
     memset(s_ams_lbl, 0, sizeof(s_ams_lbl));
 
     for (int i = 0; i < 5; i++) {
-        int y = 34 + i * 36;
+        int y = 40 + i * 40;   // 卡片加高后行距拉开
         // 霓虹色片 (带光晕, 颜色来自 MQTT tray_color)
         lv_obj_t *chip = lv_obj_create(card);
         if (chip) {

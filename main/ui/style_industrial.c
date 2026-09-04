@@ -167,7 +167,7 @@ static void build_page0(void) {
     s_card[0] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, 2, 0);                 // 工控风: 直角微圆
     lv_obj_set_style_border_width(card, 1, 0);
@@ -210,13 +210,13 @@ static void build_page0(void) {
     // "%-4s" 那类空格对齐对中文无效 (CJK 按字形宽度算), 统一用 "图标 + 名称 + 值"
     const char *inits[5] = {"--/--°C", "--/--°C", "--°C", "--/--", L_CONNECTING};
     for (int i = 0; i < 5; i++) {
-        s_row_dot[i] = mk_led(card, 2, 96 + i * 24, c->border);
+        s_row_dot[i] = mk_led(card, 2, 100 + i * 28, c->border);   // 加高后行距拉开
         char buf[64];
         snprintf(buf, sizeof(buf), "%s %s %s",
                  ICO(s_row_cmp[i]), cmp_name(s_row_cmp[i]), inits[i]);
         // 标题与值合并为单标签, 前置 LED 灯负责状态色
         s_row_lbl[i] = mk_lbl(card, buf, L_FONT_TEXT, c->text_primary);
-        if (s_row_lbl[i]) lv_obj_set_pos(s_row_lbl[i], 16, 92 + i * 24);
+        if (s_row_lbl[i]) lv_obj_set_pos(s_row_lbl[i], 16, 96 + i * 28);
     }
 }
 
@@ -230,7 +230,7 @@ static void build_page1(void) {
     s_card[1] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, 2, 0);
     lv_obj_set_style_border_width(card, 1, 0);
@@ -245,7 +245,7 @@ static void build_page1(void) {
     memset(s_ams_bar, 0, sizeof(s_ams_bar));
 
     for (int i = 0; i < 5; i++) {
-        int y = 32 + i * 38;
+        int y = 36 + i * 42;   // 加高后行距拉开, 修复原 218 卡片时末行余量条被裁 5px 的溢出
         // 颜色片
         lv_obj_t *chip = lv_obj_create(card);
         if (chip) {

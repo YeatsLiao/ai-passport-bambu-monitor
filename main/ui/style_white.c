@@ -196,7 +196,7 @@ static void build_page0(void) {
     s_card[0] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, c->radius, 0);
     lv_obj_set_style_border_width(card, 0, 0);
@@ -207,8 +207,8 @@ static void build_page0(void) {
     lv_obj_set_style_pad_all(card, 16, 0);          // 大留白是素雅风的核心
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    // 内容区 176x170; 两列: 左 x=0, 右 x=88
-    const int W = 176, col_r = 88;
+    // 内容区 192x220; 两列: 左 x=0, 右 x=96
+    const int W = 192, col_r = 96;
 
     // ── 顶部状态行 (小字, 次要色) ──
     s_state_lbl = mk_lbl(card, LV_SYMBOL_WIFI " " L_CONNECTING, L_FONT_TEXT, c->text_secondary);
@@ -221,7 +221,7 @@ static void build_page0(void) {
         lv_obj_set_style_text_color(s_pct_lbl, lv_color_hex(c->text_primary), 0);
     }
 
-    mk_rule(card, 76, W);
+    mk_rule(card, 80, W);
 
     // ── 四个小数据位 (两行两列, 由 CFG_COMPONENT_ORDER 驱动) ──
     // 百分比与状态已各占固定位置, 跳过它们和 AMS, 其余按配置取前 4 项
@@ -238,8 +238,8 @@ static void build_page0(void) {
     memset(s_slot_val, 0, sizeof(s_slot_val));
 
     // 第一行数值用 20px, 第二行用 14px: 形成主次层级而非平铺
-    const int label_y[2] = {84, 138};
-    const int value_y[2] = {100, 154};
+    const int label_y[2] = {90, 158};
+    const int value_y[2] = {106, 174};
     const lv_font_t *value_font[2] = {L_FONT_NUM_MID, L_FONT_TEXT};
 
     for (int i = 0; i < SLOT_COUNT; i++) {
@@ -256,7 +256,7 @@ static void build_page0(void) {
         if (s_slot_val[i]) lv_obj_set_pos(s_slot_val[i], x, value_y[row]);
     }
 
-    mk_rule(card, 130, W);
+    mk_rule(card, 146, W);
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +269,7 @@ static void build_page1(void) {
     s_card[1] = card;
 
     lv_obj_set_pos(card, 8, 34);
-    lv_obj_set_size(card, 224, 218);
+    lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, c->radius, 0);
     lv_obj_set_style_border_width(card, 0, 0);
@@ -279,7 +279,7 @@ static void build_page1(void) {
     lv_obj_set_style_pad_all(card, 16, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    const int W = 176;
+    const int W = 192;
 
     mk_lbl(card, LV_SYMBOL_SD_CARD " " L_AMS, L_FONT_TEXT_BIG, c->text_primary);
     mk_rule(card, 30, W);
@@ -289,7 +289,7 @@ static void build_page1(void) {
     memset(s_ams_pct, 0, sizeof(s_ams_pct));
 
     for (int i = 0; i < 5; i++) {
-        int y = 42 + i * 26;
+        int y = 46 + i * 34;   // 卡片加高后行距拉开
 
         // 方形色片 (极简: 小方块而非圆形/菱形), 颜色由 MQTT tray_color 实时驱动
         lv_obj_t *chip = lv_obj_create(card);
