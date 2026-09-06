@@ -37,5 +37,11 @@ lv_display_t *bsp_lvgl_init(void) {
     return s_disp;
 }
 
-bool bsp_lvgl_lock(int timeout_ms) { return lvgl_port_lock(timeout_ms); }
+bool bsp_lvgl_lock(int timeout_ms) {
+    // LVGL 未就绪时直接返回失败, 避免触发 lvgl_port_lock 的
+    // "lvgl_port_init must be called first" 断言崩溃
+    // (启动期 MQTT/TLS 握手窗口内, ADC 按键抖动可能误触发回调)
+    if (!s_disp) return false;
+    return lvgl_port_lock(timeout_ms);
+}
 void bsp_lvgl_unlock(void)         { lvgl_port_unlock(); }

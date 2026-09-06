@@ -28,9 +28,12 @@
 
 static const char *TAG = "main";
 
+static volatile bool s_ui_ready = false;   // LVGL 就绪前丢弃按键, 防止误锁未初始化的 port 层
+
 // 按键回调（运行在 button 组件任务中，操作 LVGL 需加锁）
 static void on_key(bsp_btn_t btn, bsp_btn_ev_t ev, void *user) {
     (void)user;
+    if (!s_ui_ready) return;   // MQTT/TLS 握手窗口内 ADC 抖动可能产生误按键
     if (!bsp_lvgl_lock(500)) return;
 
     if (btn == BSP_BTN_OK && ev == BSP_BTN_LONG) {
@@ -108,6 +111,7 @@ void app_main(void) {
 
     // 7. 加载监控页面
     ui_monitor_enter();
+    s_ui_ready = true;
 
     ESP_LOGI(TAG, "启动完成 堆=%lu", esp_get_free_heap_size());
 
