@@ -131,50 +131,41 @@ static void build_page0(void) {
 
     const uint32_t print_w = c->text_primary;   // 印刷白 (反白条码底/二维码底)
 
-    // ── 标签顶部: 左品牌行, 右三行规格小字 (实物 MODEL/RATED/INTERFACE 位) ──
+    // ── 标签顶部: 左品牌 + 反白条码框 (实物 S/N 条码位), 下一行 S/N 右对齐 ──
+    // 注: 实测字号远大于初版预估, 顶部不再放三行右侧规格小字 (会撞进品牌行)
     mk_lbl(card, "Bambu Lab", L_FONT_TEXT_BIG, c->text_primary);
-    static const char *specs[3] = {"MODEL:BMBU-MON", "RATED:DC+5.0V", "IF:WIFI-MQTT"};
-    for (int i = 0; i < 3; i++) {
-        lv_obj_t *l = mk_lbl(card, specs[i], L_FONT_NUM, c->text_secondary);
-        if (l) lv_obj_align(l, LV_ALIGN_TOP_RIGHT, 0, i * 13);
+    lv_obj_t *bc_box = mk_block(card, 148, 2, 56, 14, print_w);
+    if (bc_box) {
+        // 白底黑条纹 (实物 S/N 条码, 黑条画在标签色上)
+        static const uint8_t bc_w[] = {3, 2, 2, 3, 2, 4, 3, 2, 2, 3};
+        int bx = 4;
+        for (int i = 0; i < (int)(sizeof(bc_w) / sizeof(bc_w[0])); i++) {
+            if (!mk_block(bc_box, bx, 2, bc_w[i], 10, c->card_bg)) break;
+            bx += bc_w[i] + 2;
+        }
     }
+    lv_obj_t *sn = mk_lbl(card, "S/N BMBU-MON-25", L_FONT_NUM, c->text_secondary);
+    if (sn) lv_obj_align(sn, LV_ALIGN_TOP_RIGHT, 0, 24);
 
     // ── 分隔细线 (实物标签的印刷横线) ──
     mk_block(card, 0, 40, 204, 2, c->border);
 
-    // ── 左侧容量式大字区: 打印进度当盘容量读数 ──
+    // ── 容量式大字 (左): 打印进度当盘容量读数; 右侧二维码装饰 ──
     s_pct_lbl = mk_lbl(card, "--%", L_FONT_NUM_HUGE, c->text_primary);
-    if (s_pct_lbl) lv_obj_set_pos(s_pct_lbl, 0, 46);
-    lv_obj_t *cap = mk_lbl(card, "PRINT PROGRESS", L_FONT_NUM, c->text_secondary);
-    if (cap) lv_obj_set_pos(cap, 0, 96);
-    s_state_lbl = mk_lbl(card, L_CONNECTING, L_FONT_TEXT, c->text_secondary);
-    if (s_state_lbl) lv_obj_set_pos(s_state_lbl, 0, 110);
-
-    // ── 右侧印刷区: 反白条码框 + 二维码装饰 + 序列号小字 ──
-    lv_obj_t *bc_box = mk_block(card, 104, 46, 72, 24, print_w);
-    if (bc_box) {
-        // 白底黑条纹 (实物 S/N 条码, 黑条画在标签色上)
-        static const uint8_t bc_w[] = {4, 2, 2, 3, 2, 5, 3, 2, 2, 3, 2, 4};
-        int bx = 4;
-        for (int i = 0; i < (int)(sizeof(bc_w) / sizeof(bc_w[0])); i++) {
-            if (!mk_block(bc_box, bx, 3, bc_w[i], 18, c->card_bg)) break;
-            bx += bc_w[i] + 2;
-        }
-    }
-    // 二维码装饰 (三个定位角 + 中心点, 实物标签右侧 QR 位)
-    lv_obj_t *qr = mk_block(card, 182, 46, 22, 22, print_w);
+    if (s_pct_lbl) lv_obj_set_pos(s_pct_lbl, 0, 50);
+    lv_obj_t *qr = mk_block(card, 178, 52, 24, 24, print_w);
     if (qr) {
-        mk_block(qr, 2, 2, 6, 6, c->card_bg);
-        mk_block(qr, 14, 2, 6, 6, c->card_bg);
-        mk_block(qr, 2, 14, 6, 6, c->card_bg);
-        mk_block(qr, 9, 9, 4, 4, c->card_bg);
+        mk_block(qr, 2, 2, 7, 7, c->card_bg);
+        mk_block(qr, 15, 2, 7, 7, c->card_bg);
+        mk_block(qr, 2, 15, 7, 7, c->card_bg);
+        mk_block(qr, 10, 10, 4, 4, c->card_bg);
     }
-    lv_obj_t *sn1 = mk_lbl(card, "S/N BMBU-MON-25", L_FONT_NUM, c->text_secondary);
-    if (sn1) lv_obj_set_pos(sn1, 104, 74);
-    lv_obj_t *sn2 = mk_lbl(card, "970823 624339", L_FONT_NUM, c->text_secondary);
-    if (sn2) lv_obj_set_pos(sn2, 104, 88);
-    lv_obj_t *sn3 = mk_lbl(card, "MADE IN CHINA", L_FONT_NUM, c->text_secondary);
-    if (sn3) lv_obj_set_pos(sn3, 104, 102);
+
+    // ── 状态文字 (左, 语义色) + MADE IN CHINA (右, 实物标签底部印刷位) ──
+    s_state_lbl = mk_lbl(card, L_CONNECTING, L_FONT_TEXT, c->text_secondary);
+    if (s_state_lbl) lv_obj_set_pos(s_state_lbl, 0, 106);
+    lv_obj_t *mi = mk_lbl(card, "MADE IN CHINA", L_FONT_NUM, c->text_secondary);
+    if (mi) lv_obj_align(mi, LV_ALIGN_TOP_RIGHT, 0, 108);
 
     // ── 规格表: 名称左对齐 + 数值右对齐 (实物标签中部规格印刷区) ──
     // 数值列右对齐: 宽度变化向左扩展, 不会撞到名称列
@@ -182,7 +173,7 @@ static void build_page0(void) {
     memset(s_row_val, 0, sizeof(s_row_val));
     const char *row_names[5] = {L_NOZZLE, L_BED, L_CHAMBER, L_LAYER, L_REMAIN};
     for (int i = 0; i < 5; i++) {
-        int y = 128 + i * 20;
+        int y = 132 + i * 20;
         char buf[32];
         snprintf(buf, sizeof(buf), "%s %s", ICO(s_row_cmp[i]), row_names[i]);
         s_row_lbl[i] = mk_lbl(card, buf, L_FONT_TEXT, c->text_secondary);
@@ -192,7 +183,7 @@ static void build_page0(void) {
     }
 
     // ── 标签底缘白色横条 (实物标签底部的白色认证条带) ──
-    mk_block(card, 0, 228, 204, 2, print_w);
+    mk_block(card, 0, 230, 204, 2, print_w);
 }
 
 // ---------------------------------------------------------------------------

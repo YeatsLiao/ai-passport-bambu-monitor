@@ -84,6 +84,7 @@ static lv_obj_t *s_ams_pct[5];                  // 右对齐余量
 // 标题栏 / 底部栏
 static lv_obj_t *s_time_lbl = NULL;
 static lv_obj_t *s_bat_lbl  = NULL;
+static lv_obj_t *s_bat_fill = NULL;   // 像素电池填充块 (宽度随电量伸缩)
 static lv_obj_t *s_pg_lbl   = NULL;
 
 // 打印完成瞬间让机器人跳一下, 需要记住上一次状态
@@ -458,7 +459,7 @@ void style_pixel_build(void) {
 
     lv_obj_set_style_bg_color(s_scr, lv_color_hex(c->bg), 0);   // 天空
 
-    // ── 标题栏 (持久): 天空底 + 像素纸牌标题 + 右上云 ──
+    // ── 标题栏 (持久): 天空底 + 像素纸牌标题 + 右侧像素电池 ──
     lv_obj_t *header = lv_obj_create(s_scr);
     lv_obj_set_pos(header, 0, 0);
     lv_obj_set_size(header, 240, 30);
@@ -468,7 +469,17 @@ void style_pixel_build(void) {
     lv_obj_set_style_pad_all(header, 0, 0);
     lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
-    add_cloud(header, 186, 4);
+    // ── 像素方块电池 (复刻官网电池 UI): 墨黑外框 + 电量填充, 百分比在其左 ──
+    block(header, 192, 8, 22, 14, c->border);                  // 外框
+    block(header, 214, 12, 4, 6, c->border);                   // 正极帽
+    block(header, 194, 10, 18, 10, c->header_bg);              // 内腔
+    s_bat_fill = block(header, 194, 10, 18, 10, c->success);   // 填充 (宽度随电量)
+
+    const uint32_t htxt = ui_theme_on_color(c->header_bg);
+    s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, htxt);
+    if (s_time_lbl) lv_obj_align(s_time_lbl, LV_ALIGN_LEFT_MID, 88, 0);
+    s_bat_lbl = mk_lbl(header, "--", L_FONT_NUM, htxt);
+    if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -56, 0);
 
     // 官网标题牌: 墨黑投影 + 米白纸牌 + 墨黑描边, 牌内标题用墨字
     block(header, 5, 6, 74, 22, c->border);
@@ -479,13 +490,6 @@ void style_pixel_build(void) {
         lv_obj_t *title = mk_lbl(plate, L_TITLE_BAMBU, L_FONT_TEXT, c->text_primary);
         if (title) lv_obj_center(title);
     }
-
-    // 天空上的时间/电池按背景亮度自动取色 (深天空 -> 纸白字), 不硬编码
-    const uint32_t htxt = ui_theme_on_color(c->header_bg);
-    s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, htxt);
-    if (s_time_lbl) lv_obj_align(s_time_lbl, LV_ALIGN_LEFT_MID, 88, 0);
-    s_bat_lbl = mk_lbl(header, LV_SYMBOL_BATTERY_FULL " --", L_FONT_SYMBOL, htxt);
-    if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -58, 0);
 
     // ── 底部栏 (持久): 草地 (亮绿顶 + 草皮块 + 泥土) ──
     lv_obj_t *footer = lv_obj_create(s_scr);
@@ -502,6 +506,9 @@ void style_pixel_build(void) {
         block(footer, x,      22, 18, 8, PX_GRASS_DARK);
         block(footer, x + 18, 26, 12, 4, PX_SOIL);
     }
+
+    // 云朵装饰移到草地上方 (原在标题栏, 让位给像素电池)
+    add_cloud(footer, 148, 3);
 
     // 草地上文字按背景亮度自动取色 (草绿 -> 墨字)
     const uint32_t ftxt = ui_theme_on_color(c->footer_bg);
@@ -556,11 +563,19 @@ void style_pixel_update(void) {
     // 电池 (图标随电量四档变化)
     if (s_bat_lbl) {
         int soc = bsp_battery_soc();
-        if (soc >= 0) snprintf(buf, sizeof(buf), "%s %d%%", ui_theme_battery_icon(soc), soc);
-        else          snprintf(buf, sizeof(buf), "%s --", ui_theme_battery_icon(-1));
+        if (soc >= 0) snprintf(buf, sizeof(buf), "%d%%", soc);
+        else          snprintf(buf, sizeof(buf), "--");
         lv_label_set_text(s_bat_lbl, buf);
-        // 图标颜色随电量分档 (满电即官网电池 UI 的草地绿 / 中低黄 / 低电红)
+        // 百分比文字颜色随电量分档, 与填充块同色
         lv_obj_set_style_text_color(s_bat_lbl, lv_color_hex(ui_theme_battery_color(soc)), 0);
+    }
+    // 像素电池填充: 宽度随电量伸缩, 颜色随电量分档 (满电草地绿 / 低电红)
+    if (s_bat_fill) {
+        int soc = bsp_battery_soc();
+        int w = (soc > 0) ? 18 * soc / 100 : 0;
+        if (soc >= 0 && w < 2) w = 2;   // 有数据但极低时留 2px 可见
+        lv_obj_set_width(s_bat_fill, w);
+        lv_obj_set_style_bg_color(s_bat_fill, lv_color_hex(ui_theme_battery_color(soc)), 0);
     }
 
     // 打印完成瞬间让机器人跳一下
