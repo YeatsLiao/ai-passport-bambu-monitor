@@ -69,19 +69,28 @@ idf.py -p /dev/ttyACM0 flash
 
 ## UI 风格说明
 
-| 风格 | 宏定义 | 特点 |
-|------|--------|------|
-| 简洁文本 | `STYLE_COMPACT` | 信息密度高，类似 AtomS3R |
-| 仪表盘 | `STYLE_DASHBOARD` | 弧线温度表 + 进度环 |
-| 卡片 | `STYLE_CARD` | 分页浏览，类似 TRAE |
-| 可爱 | `STYLE_CUTE` | 圆角 + 马卡龙色 + 装饰 |
+编译前在 `main/config.h` 中修改 `CFG_UI_STYLE` 选择，共 9 套：
+
+| 宏定义 | 特点 |
+|--------|------|
+| `STYLE_BAMBU` | 拓竹原厂极简工业风 |
+| `STYLE_CYBER` | 赛博极简监控风 |
+| `STYLE_SHEIKAH` | 希卡石板风 |
+| `STYLE_WHITE` | 纯白极简素雅风 |
+| `STYLE_INDUSTRIAL` | 硬核机房工控风 |
+| `STYLE_NEON` | 极简霓虹低饱和极客风 |
+| `STYLE_PIXEL` | 像素机器人风（ai-passport 官网同款） |
+| `STYLE_SSD` | 固态硬盘标签风（黑标签白印 + 金铜螺丝 + SATA 金手指） |
+| `STYLE_F1` | F1 转播计时风（碳黑 + 涂装色条行卡 + F1 红 + 旗黄计时） |
+
+全部风格均为 2 页分页：第 1 页打印状态（进度/温度/层高/剩余时间），第 2 页 AMS 料仓。视觉规格详见 [UI 设计说明](docs/UI-DESIGN.md)。
 
 ## 按键操作
 
 | 按键 | 短按 | 长按 |
 |------|------|------|
-| UP | 上一页（卡片/可爱风格） | — |
-| DOWN | 下一页（卡片/可爱风格） | — |
+| UP | 上一页 | — |
+| DOWN | 下一页 | — |
 | OK | 刷新数据（pushall） | 退出（预留） |
 
 ## 文档
