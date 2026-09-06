@@ -1,8 +1,8 @@
-// main/ui/style_f1.c —— 风格9: F1 维修墙 (Pit Wall) 风
-// 视觉参照 F1 转播包装: 碳黑底 + F1 红边框条包住整屏 + 计时塔排版
-//   Page0 = PIT WALL 遥测面板: LIVE 状态灯 + 会话进度条 + 容量式大字百分比
-//           + 比赛时钟 + 计时塔数据行 (红色排位号 + 名称 + 右对齐读数)
-//   Page1 = STANDINGS 积分榜: AMS 料槽当车队 (排位号红 + 耗材色标当车队色 + 余量条)
+// main/ui/style_f1.c —— 风格9: F1 转播计时风 (Timing Tower)
+// 视觉参照 F1 watchOS 转播包装: 近黑底上悬浮圆角暗卡 + 车队涂装色条 + F1 红点缀
+//   Page0 = LAP 计时塔: 红竖线+LAP+旗黄大字百分比 + 比赛时钟 + LIVE 状态灯
+//           + 进度条 + 5 张圆角行卡 (涂装色条 + 彩色排位号 + 名称 + 右对齐读数)
+//   Page1 = STANDINGS 积分榜: AMS 料槽当车队 (耗材真实颜色当涂装色条 + 余量条)
 // 翻页策略: 两页卡片同时创建, 翻页只切换显示/隐藏 (不 destroy/rebuild)
 #include "ui_monitor.h"
 #include "ui_theme.h"
@@ -42,7 +42,7 @@ static int s_total_pages = 1 + HAS_AMS;
 
 static lv_obj_t *s_card[2] = {NULL, NULL};
 
-// Page 0: PIT WALL 遥测面板
+// Page 0: LAP 计时塔
 static lv_obj_t *s_state_dot = NULL;   // LIVE 状态灯 (运行时每秒闪烁)
 static lv_obj_t *s_state_lbl = NULL;   // LIVE/状态文字
 static lv_obj_t *s_prog_bar  = NULL;   // 会话进度条 (打印进度)
@@ -106,8 +106,34 @@ static lv_obj_t *mk_block(lv_obj_t *parent, int x, int y, int w, int h, uint32_t
     return b;
 }
 
+// 车队涂装色条 (装饰性识别色, 仅用于计时塔行卡; 数据颜色仍由 MQTT 实时驱动)
+static const uint32_t F1_LIVERY[5] = {
+    0x00D2BE,   // Mercedes 青绿
+    0xDC0000,   // Ferrari 红
+    0x1E41FF,   // Red Bull 蓝
+    0xFF8700,   // McLaren 橙
+    0xF596C8,   // Racing Point 粉
+};
+
+// 悬浮圆角行卡 (转播计时塔的暗卡; clip_corner 让色条跟随圆角; stripe=0 表示不画)
+static lv_obj_t *mk_row_card(lv_obj_t *parent, int x, int y, int w, int h, uint32_t stripe) {
+    const ui_theme_colors_t *c = ui_theme_get_colors();
+    lv_obj_t *row = lv_obj_create(parent);
+    if (!row) return NULL;
+    lv_obj_set_pos(row, x, y);
+    lv_obj_set_size(row, w, h);
+    lv_obj_remove_flag(row, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_style_radius(row, 6, 0);
+    lv_obj_set_style_border_width(row, 0, 0);
+    lv_obj_set_style_pad_all(row, 0, 0);
+    lv_obj_set_style_clip_corner(row, true, 0);
+    lv_obj_set_style_bg_color(row, lv_color_hex(c->card_bg), 0);
+    if (stripe) mk_block(row, 0, 0, 3, h, stripe);
+    return row;
+}
+
 // ---------------------------------------------------------------------------
-// Page 0: PIT WALL 遥测面板
+// Page 0: LAP 计时塔
 // ---------------------------------------------------------------------------
 static void build_page0(void) {
     const ui_theme_colors_t *c = ui_theme_get_colors();
@@ -115,33 +141,40 @@ static void build_page0(void) {
     if (!card) return;
     s_card[0] = card;
 
+    // 页容器透明: 行卡直接悬浮在碳黑底上 (转播包装的排版方式)
     lv_obj_set_pos(card, 8, 34);
-    // 面板下探到 footer 上沿 (y286), 不留背景空带
     lv_obj_set_size(card, 224, 252);
-    lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
-    lv_obj_set_style_radius(card, 2, 0);
-    lv_obj_set_style_border_width(card, 1, 0);
-    lv_obj_set_style_border_color(card, lv_color_hex(c->border), 0);
-    lv_obj_set_style_pad_all(card, 10, 0);
+    lv_obj_set_style_bg_opa(card, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(card, 0, 0);
+    lv_obj_set_style_pad_all(card, 0, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    // ── 面板头: 红色排位条 + PIT WALL, 右侧 LIVE 状态灯 ──
-    mk_block(card, 0, 3, 4, 14, c->accent);
-    lv_obj_t *ttl = mk_lbl(card, "PIT WALL", L_FONT_TEXT_BIG, c->text_primary);
-    if (ttl) lv_obj_set_pos(ttl, 10, 0);
+    // ── 顶部: 红竖线 + LAP + 旗黄大字百分比 (转播 "LAP 11/55" 位) ──
+    mk_block(card, 4, 2, 3, 24, c->accent);
+    lv_obj_t *lap = mk_lbl(card, "LAP", L_FONT_TEXT_BIG, c->text_primary);
+    if (lap) lv_obj_set_pos(lap, 14, 0);
+    s_pct_lbl = mk_lbl(card, "--%", L_FONT_NUM_BIG, c->warning);
+    if (s_pct_lbl) lv_obj_set_pos(s_pct_lbl, 64, 0);
+
+    // 右上比赛时钟 (旗黄, Montserrat 无中文 fallback, 输出纯 ASCII "1h16m";
+    // 用 NUM 字号避免与大字百分比在 224 宽内相撞)
+    s_clock_lbl = mk_lbl(card, "--", L_FONT_NUM, c->warning);
+    if (s_clock_lbl) lv_obj_align(s_clock_lbl, LV_ALIGN_TOP_RIGHT, -4, 4);
+
+    // LIVE 状态灯 + 状态文字 (时钟下方)
     s_state_dot = mk_block(card, 0, 0, 6, 6, c->border);
     if (s_state_dot) {
-        lv_obj_align(s_state_dot, LV_ALIGN_TOP_RIGHT, 0, 6);
+        lv_obj_align(s_state_dot, LV_ALIGN_TOP_RIGHT, -64, 26);
         lv_obj_set_style_radius(s_state_dot, LV_RADIUS_CIRCLE, 0);
     }
     s_state_lbl = mk_lbl(card, "--", L_FONT_TEXT, c->text_secondary);
-    if (s_state_lbl) lv_obj_align(s_state_lbl, LV_ALIGN_TOP_RIGHT, -10, 1);
+    if (s_state_lbl) lv_obj_align(s_state_lbl, LV_ALIGN_TOP_RIGHT, -4, 23);
 
     // ── 会话进度条 (打印进度, F1 红指示条) ──
     lv_obj_t *track = lv_obj_create(card);
     if (track) {
-        lv_obj_set_pos(track, 0, 26);
-        lv_obj_set_size(track, 204, 4);
+        lv_obj_set_pos(track, 4, 50);
+        lv_obj_set_size(track, 216, 4);
         lv_obj_remove_flag(track, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_style_radius(track, 2, 0);
         lv_obj_set_style_border_width(track, 0, 0);
@@ -150,7 +183,7 @@ static void build_page0(void) {
 
         s_prog_bar = lv_bar_create(track);
         if (s_prog_bar) {
-            lv_obj_set_size(s_prog_bar, 204, 4);
+            lv_obj_set_size(s_prog_bar, 216, 4);
             lv_obj_align(s_prog_bar, LV_ALIGN_LEFT_MID, 0, 0);
             lv_obj_set_style_radius(s_prog_bar, 2, 0);
             lv_obj_set_style_bg_opa(s_prog_bar, LV_OPA_TRANSP, LV_PART_MAIN);
@@ -160,36 +193,29 @@ static void build_page0(void) {
         }
     }
 
-    // ── 大字百分比 (左) + 比赛时钟 (右, 剩余时间用旗黄) ──
-    // 时钟用 Montserrat 28 (无中文 fallback), 所以输出纯 ASCII 的 "1h16m"
-    s_pct_lbl = mk_lbl(card, "--%", L_FONT_NUM_HUGE, c->text_primary);
-    if (s_pct_lbl) lv_obj_align(s_pct_lbl, LV_ALIGN_TOP_LEFT, 0, 36);
-    s_clock_lbl = mk_lbl(card, "--", L_FONT_NUM_BIG, c->warning);
-    if (s_clock_lbl) lv_obj_align(s_clock_lbl, LV_ALIGN_TOP_RIGHT, 0, 52);
-
-    // ── 计时塔数据行: 红色排位号 + 名称 + 右对齐读数 ──
+    // ── 计时塔行卡: 涂装色条 + 彩色排位号 + 名称 + 右对齐读数 ──
     memset(s_row_lbl, 0, sizeof(s_row_lbl));
     memset(s_row_val, 0, sizeof(s_row_val));
     const char *row_names[5] = {L_NOZZLE, L_BED, L_CHAMBER, L_LAYER, L_REMAIN};
     for (int i = 0; i < 5; i++) {
-        int y = 98 + i * 24;
+        int y = 58 + i * 39;
+        lv_obj_t *row = mk_row_card(card, 4, y, 216, 33, F1_LIVERY[i]);
+        if (!row) continue;
+
         char buf[16];
         snprintf(buf, sizeof(buf), "0%d", i + 1);
-        lv_obj_t *rank = mk_lbl(card, buf, L_FONT_NUM, c->accent);
-        if (rank) lv_obj_set_pos(rank, 2, y);
+        lv_obj_t *rank = mk_lbl(row, buf, L_FONT_NUM, F1_LIVERY[i]);   // 排位号用车队色
+        if (rank) lv_obj_set_pos(rank, 10, 8);
 
         snprintf(buf, sizeof(buf), "%s %s", ICO(s_row_cmp[i]), row_names[i]);
-        s_row_lbl[i] = mk_lbl(card, buf, L_FONT_TEXT, c->text_secondary);
-        if (s_row_lbl[i]) lv_obj_set_pos(s_row_lbl[i], 24, y);
+        s_row_lbl[i] = mk_lbl(row, buf, L_FONT_TEXT, c->text_primary);
+        if (s_row_lbl[i]) lv_obj_set_pos(s_row_lbl[i], 36, 8);
 
         // 层数/剩余时间用旗黄 (计时屏积分位), 温度读数用竞速白
-        s_row_val[i] = mk_lbl(card, "--", L_FONT_TEXT,
+        s_row_val[i] = mk_lbl(row, "--", L_FONT_TEXT,
                               (i >= 3) ? c->warning : c->text_primary);
-        if (s_row_val[i]) lv_obj_align(s_row_val[i], LV_ALIGN_TOP_RIGHT, 0, y);
+        if (s_row_val[i]) lv_obj_align(s_row_val[i], LV_ALIGN_RIGHT_MID, -10, 0);
     }
-
-    // ── 面板底部红色饰线 ──
-    mk_block(card, 0, 224, 204, 2, c->accent);
 }
 
 // ---------------------------------------------------------------------------
@@ -201,67 +227,60 @@ static void build_page1(void) {
     if (!card) return;
     s_card[1] = card;
 
+    // 页容器透明: 行卡直接悬浮在碳黑底上
     lv_obj_set_pos(card, 8, 34);
     lv_obj_set_size(card, 224, 252);
-    lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
-    lv_obj_set_style_radius(card, 2, 0);
-    lv_obj_set_style_border_width(card, 1, 0);
-    lv_obj_set_style_border_color(card, lv_color_hex(c->border), 0);
-    lv_obj_set_style_pad_all(card, 10, 0);
+    lv_obj_set_style_bg_opa(card, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(card, 0, 0);
+    lv_obj_set_style_pad_all(card, 0, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    // 面板头: 红色排位条 + STANDINGS
-    mk_block(card, 0, 3, 4, 14, c->accent);
-    mk_lbl(card, "STANDINGS", L_FONT_TEXT_BIG, c->text_primary);
+    // ── 面板头: 红竖线 + STANDINGS (转播 Drivers 榜位) ──
+    mk_block(card, 4, 2, 3, 14, c->accent);
+    lv_obj_t *ttl = mk_lbl(card, "STANDINGS", L_FONT_TEXT_BIG, c->text_primary);
+    if (ttl) lv_obj_set_pos(ttl, 14, 0);
 
     memset(s_ams_chip, 0, sizeof(s_ams_chip));
     memset(s_ams_lbl, 0, sizeof(s_ams_lbl));
     memset(s_ams_bar, 0, sizeof(s_ams_bar));
 
+    // ── 车队行卡: 耗材真实颜色当涂装色条 + 排位号 + 类型余量 + 底部细余量条 ──
     for (int i = 0; i < 5; i++) {
-        int y = 36 + i * 40;
+        int y = 30 + i * 43;
+        lv_obj_t *row = mk_row_card(card, 4, y, 216, 38, 0);
+        if (!row) continue;
 
-        // 红色排位号 (Ext 外挂槽显示 "EX")
+        // 涂装色条位 = 耗材真实颜色 (update 时由 ui_theme_tray_swatch 上色,
+        // 透明耗材走空心描边逻辑, 未知时先用主题次要文字色占位)
+        s_ams_chip[i] = mk_block(row, 0, 0, 3, 38, c->text_secondary);
+
+        // 排位号 (Ext 外挂槽显示 "EX")
         char buf[8];
         if (i < 4) snprintf(buf, sizeof(buf), "0%d", i + 1);
         else       snprintf(buf, sizeof(buf), "EX");
-        lv_obj_t *rank = mk_lbl(card, buf, L_FONT_NUM, c->accent);
-        if (rank) lv_obj_set_pos(rank, 2, y + 2);
-
-        // 车队色标 = 耗材真实颜色 (收到 MQTT 数据后被覆盖)
-        lv_obj_t *chip = lv_obj_create(card);
-        if (chip) {
-            lv_obj_set_pos(chip, 24, y + 2);
-            lv_obj_set_size(chip, 14, 14);
-            lv_obj_remove_flag(chip, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_set_style_radius(chip, 1, 0);
-            lv_obj_set_style_border_width(chip, 1, 0);
-            lv_obj_set_style_border_color(chip, lv_color_hex(c->border), 0);
-            // 无数据时的占位色用主题次要文字色
-            lv_obj_set_style_bg_color(chip, lv_color_hex(c->text_secondary), 0);
-        }
-        s_ams_chip[i] = chip;
+        lv_obj_t *rank = mk_lbl(row, buf, L_FONT_NUM, c->text_primary);
+        if (rank) lv_obj_set_pos(rank, 10, 11);
 
         // 车队行: "PLA 54%" / "(空)"
-        s_ams_lbl[i] = mk_lbl(card, L_EMPTY, L_FONT_TEXT, c->text_primary);
-        if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 46, y);
+        s_ams_lbl[i] = mk_lbl(row, L_EMPTY, L_FONT_TEXT, c->text_primary);
+        if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 36, 3);
 
-        // 积分式余量条
-        lv_obj_t *bar_bg = lv_obj_create(card);
+        // 积分式余量条 (卡片底部细条, F1 红指示)
+        lv_obj_t *bar_bg = lv_obj_create(row);
         if (bar_bg) {
-            lv_obj_set_pos(bar_bg, 24, y + 20);
-            lv_obj_set_size(bar_bg, 168, 4);
+            lv_obj_set_pos(bar_bg, 36, 31);
+            lv_obj_set_size(bar_bg, 170, 3);
             lv_obj_remove_flag(bar_bg, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_set_style_radius(bar_bg, 2, 0);
+            lv_obj_set_style_radius(bar_bg, 1, 0);
             lv_obj_set_style_border_width(bar_bg, 0, 0);
             lv_obj_set_style_pad_all(bar_bg, 0, 0);
             lv_obj_set_style_bg_color(bar_bg, lv_color_hex(c->border), 0);
 
             lv_obj_t *bar = lv_bar_create(bar_bg);
             if (bar) {
-                lv_obj_set_size(bar, 168, 4);
+                lv_obj_set_size(bar, 170, 3);
                 lv_obj_align(bar, LV_ALIGN_LEFT_MID, 0, 0);
-                lv_obj_set_style_radius(bar, 2, 0);
+                lv_obj_set_style_radius(bar, 1, 0);
                 lv_obj_set_style_bg_opa(bar, LV_OPA_TRANSP, LV_PART_MAIN);
                 lv_obj_set_style_bg_color(bar, lv_color_hex(c->accent), LV_PART_INDICATOR);
                 lv_bar_set_range(bar, 0, 100);
