@@ -161,14 +161,14 @@ static void build_page0(void) {
     s_clock_lbl = mk_lbl(card, "--", L_FONT_NUM, c->warning);
     if (s_clock_lbl) lv_obj_align(s_clock_lbl, LV_ALIGN_TOP_RIGHT, -4, 4);
 
-    // LIVE 状态灯 + 状态文字 (时钟下方)
+    // LIVE 状态灯 + 状态文字 (时钟下方; 文字含图标+3汉字约 72px, 圆点在其左侧留 8px)
     s_state_dot = mk_block(card, 0, 0, 6, 6, c->border);
     if (s_state_dot) {
-        lv_obj_align(s_state_dot, LV_ALIGN_TOP_RIGHT, -64, 26);
+        lv_obj_align(s_state_dot, LV_ALIGN_TOP_RIGHT, -80, 35);
         lv_obj_set_style_radius(s_state_dot, LV_RADIUS_CIRCLE, 0);
     }
     s_state_lbl = mk_lbl(card, "--", L_FONT_TEXT, c->text_secondary);
-    if (s_state_lbl) lv_obj_align(s_state_lbl, LV_ALIGN_TOP_RIGHT, -4, 23);
+    if (s_state_lbl) lv_obj_align(s_state_lbl, LV_ALIGN_TOP_RIGHT, -4, 30);
 
     // ── 会话进度条 (打印进度, F1 红指示条) ──
     lv_obj_t *track = lv_obj_create(card);

@@ -479,7 +479,7 @@ void style_pixel_build(void) {
     s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, htxt);
     if (s_time_lbl) lv_obj_align(s_time_lbl, LV_ALIGN_LEFT_MID, 88, 0);
     s_bat_lbl = mk_lbl(header, "--", L_FONT_NUM, htxt);
-    if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -56, 0);
+    if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -52, 0);   // 右缘 x188: 距时间与电池框各留 4px
 
     // 官网标题牌: 墨黑投影 + 米白纸牌 + 墨黑描边, 牌内标题用墨字
     block(header, 5, 6, 74, 22, c->border);
