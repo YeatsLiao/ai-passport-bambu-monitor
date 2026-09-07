@@ -222,6 +222,30 @@ Bambu        15:31        BAT:100%
 
 ---
 
+## 阶段 7：UI 风格扩展至 10 套 + 实机走查
+
+在 v2 架构基础上持续扩展风格，最终共 10 套：bambu / dashboard / cyber / terminal / neon / sheikah / industrial / white / pixel / f1 / ssd / gauge（烧录前在 `config.h` 用 `CFG_UI_STYLE` 十选一）。
+
+### 统一约定（新风格必须遵守）
+
+- 所有风格卡片几何统一为 `(8,34) 224×252`（pad 8 → 内容区 208×236）
+- 颜色一律走 `ui_theme` 调色板变量或 MQTT 实时数据，容器背景禁止硬编码
+- `style_*.c` 模板级 bug 需同步修复全部风格文件（一遍走查）
+
+### 第 10 套 STYLE_GAUGE（图形仪表盘风，参考 BambuHelper）
+
+- Page0：顶部细进度条 + 六个 270° `lv_arc` 仪表环（2×3 网格：进度/喷嘴/热床/速度/层数/腔体）+ ETA 大字 + 任务名
+- Page1：AMS 竖条电池（填充高度=余量、填充色=实时耗材色、当前槽亮色描边）+ ETA + 当前耗材色点
+- ETA 由 `当前时间 + mc_remaining` 实时推算；Ext 外置料仓余量打印机固定上报 0（无传感器），如实显示
+
+### 实机走查修出的三类布局坑
+
+1. **lv_obj_align 命名对齐语义**：`LV_ALIGN_TOP_MID` 的 dx 是"对象中心"相对父中线的偏移，再减对象半宽会导致整列偏出屏幕（左列文字被裁成半截）
+2. **lv_obj 默认内边距**：`lv_obj_create` 容器自带约 7px padding，子对象被推移+裁剪（AMS 竖条填充块 16px 只剩半截），精确布局前必须显式 `pad_all(0)`
+3. **LV_LABEL_LONG_DOT 截断失效**：只固定宽不固定高时回退为 WRAP 换行，两行长文本直接挤压下方元素，必须 `lv_obj_set_size()` 同时定宽高
+
+---
+
 ## 踩坑总结（给后来者）
 
 | # | 坑 | 教训 |
@@ -240,12 +264,17 @@ Bambu        15:31        BAT:100%
 | 12 | AMS 数据全空 | JSON 路径是 `print.ams.ams[].tray[]`，不是 `print.ams.tray` |
 | 13 | 颜色/料槽号读不到 | `cols` 是数组、`tray_now`/`id` 是字符串，cJSON 取值前先确认字段真实类型 |
 | 14 | 低内存下 destroy/rebuild 翻页渲染异常 | UI 对象一次性创建，翻页只切 `LV_OBJ_FLAG_HIDDEN` |
+| 15 | 某列元素整体偏出屏幕、文字被裁半截 | `LV_ALIGN_TOP_MID` 的 dx 是对象中心相对父中线的偏移，不要再减对象半宽 |
+| 16 | 容器内子对象变窄变矮被裁剪 | `lv_obj_create` 自带默认内边距，精确布局前显式 `pad_all(0)` |
+| 17 | 长文件名标签换行两行挤压布局 | `LV_LABEL_LONG_DOT` 必须同时固定宽和高（`lv_obj_set_size`） |
 
 ---
 
 ## 提交历史（分步提交记录）
 
 ```
+docs: 同步风格十说明至三份文档 + 开发日志补记风格扩展
+feat: 新增第10套图形仪表盘风格 STYLE_GAUGE（六圆弧仪表环 + AMS 竖条电池）
 docs: 同步 README/开发日志 + MQTT 报文样例 + UI 设计描述
 style: AMS 标签去掉颜色 hex 文本（色块已表达颜色）
 fix: tray_color 字段解析（cols 是数组不是字符串）
