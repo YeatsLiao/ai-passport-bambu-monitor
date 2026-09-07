@@ -6,8 +6,8 @@
 
 ## 特性
 
-- **4 种 UI 风格**：简洁文本 / 仪表盘 / 卡片 / 可爱风
-- **4 种颜色主题**：深色 / 浅色 / 拓竹绿 / 马卡龙
+- **9 种 UI 风格**：拓竹原厂 / 赛博 / 希卡石板 / 纯白 / 工控 / 霓虹 / 像素机器人 / 固态硬盘标签 / F1 转播计时
+- **数据驱动配色**：耗材颜色、电量、状态色均由 MQTT 实时数据决定，不是写死的
 - **3 按键交互**：UP/DOWN 翻页，OK 刷新
 - **局域网直连**：无需云端，数据不出局域网
 - **支持 X1/P1/A1 系列**：自动适配不同型号的数据格式
@@ -18,9 +18,34 @@
 - 拓竹打印机（X1-Carbon / X1 / P1P / P1S / A1 / A1 Mini 等）
 - 同一局域网（2.4GHz WiFi）
 
+## 实机效果
+
+TRAG 透明壳实机运行（固态硬盘标签风 STYLE_SSD）：
+
+第 1 页 —— 打印状态（黑标签白印 + 反白条码/二维码 + SATA 金手指）：
+
+![SSD 风格第 1 页](docs/img/style_ssd_page0_trag.jpg)
+
+第 2 页 —— AMS 料仓（SMART 信息表样式，实时耗材类型/余量/颜色）：
+
+![SSD 风格第 2 页](docs/img/style_ssd_page1_trag.jpg)
+
 ## 快速开始
 
-### 1. 创建配置文件
+### 1. 打印机端设置（必须）
+
+在拓竹打印机屏幕上进入 **设置 > 网络**，开启以下两项：
+
+- **仅局域网模式**：开启后显示打印机 **IP** 和 **访问码**（8 位，每次重启打印机后会变化）
+- **开发者模式**（仅适用于 3D 打印）
+
+![拓竹打印机局域网设置](docs/img/bambu_lan_settings.png)
+
+记下上图中红框内的 **IP**（如 `192.168.1.63`）和**访问码**；序列号在 设置 > 设备 > 序列号（15 位）。
+
+> 注意：开启「仅局域网模式」将断开拓竹云服务和 Handy APP 的连接，设备改走纯局域网 MQTT-TLS 通信（端口 8883）。
+
+### 2. 创建配置文件
 
 ```bash
 # 从模板复制配置文件（config.h 已在 .gitignore 中，不会提交到仓库）
@@ -39,16 +64,13 @@ cp main/config.example.h main/config.h
 #define CFG_PRINTER_SERIAL  "YOUR_SERIAL"      // 序列号（15 位）
 #define CFG_ACCESS_CODE     "YOUR_CODE"        // 访问码（8 位）
 
-// UI 风格（1=简洁 2=仪表盘 3=卡片 4=可爱）
-#define CFG_UI_STYLE  STYLE_CARD
-
-// 颜色主题（1=深色 2=浅色 3=拓竹绿 4=马卡龙）
-#define CFG_THEME  THEME_DARK
+// UI 风格（STYLE_BAMBU / CYBER / SHEIKAH / WHITE / INDUSTRIAL / NEON / PIXEL / SSD / F1）
+#define CFG_UI_STYLE  STYLE_SSD
 ```
 
 > **注意**：`config.h` 包含你的 WiFi 密码和打印机访问码，已在 `.gitignore` 中排除，请勿手动提交到仓库。
 
-### 2. 编译烧录
+### 3. 编译烧录
 
 ```bash
 # 设置 ESP-IDF 环境
@@ -60,12 +82,6 @@ idf.py build
 # 烧录
 idf.py -p /dev/ttyACM0 flash
 ```
-
-### 3. 查看打印机信息
-
-- **IP**：打印机屏幕 设置 > 网络
-- **序列号**：设置 > 设备 > 序列号（15 位）
-- **访问码**：设置 > 网络 > 访问码（8 位，每次重启变化）
 
 ## UI 风格说明
 
@@ -115,8 +131,10 @@ ai-passport-bambu-monitor/
 │   ├── bambu_state.h/c      # 打印机状态数据结构
 │   ├── bambu_mqtt.h/c       # MQTT-TLS 客户端
 │   └── ui/
-│       ├── ui_theme.h/c     # 颜色主题系统
-│       └── ui_monitor.h/c   # 监控页面（4 种风格 + 分页）
+│       ├── ui_theme.h/c     # 主题色板 + 电池分档色 + 耗材色块
+│       ├── ui_lang.h        # 多语言文案宏
+│       ├── ui_monitor.h/c   # 风格派发 + 分页
+│       └── style_*.c        # 9 套风格实现（bambu/cyber/sheikah/white/industrial/neon/pixel/ssd/f1）
 ├── docs/
 │   ├── README.md            # 开发文档（架构/数据流/构建）
 │   └── development-log.md   # 开发日志（踩坑记录）
@@ -135,11 +153,12 @@ ESP32-C3 无 PSRAM，已做以下优化：
 - JSON 解析：cJSON 流式解析
 - TLS：跳过证书验证（拓竹自签名证书）
 
-## 参考项目
+## 参考项目与文章
 
 - [BambuHelper](https://github.com/Keralots/BambuHelper) — 功能丰富的拓竹监控固件
-- [AtomS3R-BambuMonitor](../AtomS3R-BambuMonitor) — 轻量级 MQTT 协议参考
-- [ai-passport](../ai-passport) — 硬件 BSP 和构建系统参考
+- [AtomS3R-BambuMonitor](https://github.com/Mevius1073/AtomS3R-BambuMonitor) — 轻量级 MQTT 协议参考
+- [ai-passport](https://github.com/FoloToy/ai-passport) — 硬件 BSP 和构建系统参考
+- [自制拓竹 AMS 笔记](https://yaoec.top/index.php/archives/190/) — MQTT 连接拓竹打印机的连接参数（bblp / 8883 / report 主题）与示例代码
 
 ## License
 
