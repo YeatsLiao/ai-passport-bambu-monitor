@@ -1,4 +1,4 @@
-// main/ui/ui_theme.c —— 7 套 UI 配色方案实现
+// main/ui/ui_theme.c —— 10 套 UI 配色方案实现
 // 只编译当前选中风格的配色，避免 unused-const-variable 警告
 #include "ui_theme.h"
 #include "ui_lang.h"
@@ -188,6 +188,26 @@ static const ui_theme_colors_t theme_f1 = {
     .radius        = 2,         // 赛事面板几乎全直角
 };
 
+#elif CFG_UI_STYLE == STYLE_GAUGE
+// 风格10: 图形仪表盘风 (参考 BambuHelper) — 近黑底 + 亮绿强调 + 橙喷嘴/青热床圆弧环
+static const ui_theme_colors_t theme_gauge = {
+    .bg            = 0x090B09,  // 近黑微绿
+    .card_bg       = 0x121412,  // 深灰卡片
+    .header_bg     = 0x0C0E0C,
+    .footer_bg     = 0x0C0E0C,
+    .text_primary  = 0xECEEEC,
+    .text_secondary= 0x848984,
+    .accent        = 0x2FDB6E,  // 亮绿 (顶部进度条/RUNNING/ETA, 对齐参考图)
+    .success       = 0x2FDB6E,
+    .warning       = 0xFFB300,
+    .error         = 0xFF4D3D,
+    .border        = 0x2A2F2A,  // 暗灰 (仪表环底弧/分隔线)
+    .gauge_nozzle  = 0xFF9500,  // 橙色喷嘴 (参考图 Nozzle L)
+    .gauge_bed     = 0x00C8D7,  // 青色热床 (参考图 Bed)
+    .gauge_chamber = 0x35C759,  // 绿色腔体
+    .radius        = 10,        // 环形仪表风, 圆润
+};
+
 #else
 // 默认使用 Bambu 风格
 static const ui_theme_colors_t theme_bambu = {
@@ -228,6 +248,8 @@ const ui_theme_colors_t *ui_theme_get_colors(void) {
     return &theme_ssd;
 #elif CFG_UI_STYLE == STYLE_F1
     return &theme_f1;
+#elif CFG_UI_STYLE == STYLE_GAUGE
+    return &theme_gauge;
 #else
     return &theme_bambu;
 #endif
@@ -252,6 +274,8 @@ const char *ui_theme_style_name(void) {
     return "SSD";
 #elif CFG_UI_STYLE == STYLE_F1
     return "F1";
+#elif CFG_UI_STYLE == STYLE_GAUGE
+    return "Gauge";
 #else
     return "Unknown";
 #endif

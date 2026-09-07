@@ -85,4 +85,11 @@ void rebuild_page(void);
     int  style_f1_current_page(void);
     void style_f1_next_page(void);
     void style_f1_prev_page(void);
+#elif CFG_UI_STYLE == STYLE_GAUGE
+    void style_gauge_build(void);
+    void style_gauge_update(void);
+    int  style_gauge_page_count(void);
+    int  style_gauge_current_page(void);
+    void style_gauge_next_page(void);
+    void style_gauge_prev_page(void);
 #endif

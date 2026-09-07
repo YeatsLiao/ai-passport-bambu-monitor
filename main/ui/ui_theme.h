@@ -1,4 +1,4 @@
-// main/ui/ui_theme.h —— 7 套 UI 配色方案
+// main/ui/ui_theme.h —— 10 套 UI 配色方案
 #pragma once
 
 #include "lvgl.h"

@@ -90,6 +90,13 @@ lv_obj_t *s_content_area  = NULL;   // 内容容器
     #define STYLE_CUR_PAGE    style_f1_current_page
     #define STYLE_NEXT        style_f1_next_page
     #define STYLE_PREV        style_f1_prev_page
+#elif CFG_UI_STYLE == STYLE_GAUGE
+    #define STYLE_BUILD       style_gauge_build
+    #define STYLE_UPDATE      style_gauge_update
+    #define STYLE_PAGE_COUNT  style_gauge_page_count
+    #define STYLE_CUR_PAGE    style_gauge_current_page
+    #define STYLE_NEXT        style_gauge_next_page
+    #define STYLE_PREV        style_gauge_prev_page
 #endif
 
 // ---------------------------------------------------------------------------
