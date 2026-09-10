@@ -6,7 +6,7 @@
 
 ## 特性
 
-- **10 种 UI 风格**：拓竹原厂 / 赛博 / 希卡石板 / 纯白 / 工控 / 霓虹 / 像素机器人 / 固态硬盘标签 / F1 转播计时 / 图形仪表盘
+- **12 种 UI 风格**：拓竹原厂 / 赛博 / 希卡石板 / 纯白 / 工控 / 霓虹 / 像素机器人 / 固态硬盘标签 / F1 转播计时 / 图形仪表盘 / Geist 控制台 / Apple
 - **数据驱动配色**：耗材颜色、电量、状态色均由 MQTT 实时数据决定，不是写死的
 - **3 按键交互**：UP/DOWN 翻页，OK 刷新
 - **局域网直连**：无需云端，数据不出局域网
@@ -64,7 +64,7 @@ cp main/config.example.h main/config.h
 #define CFG_PRINTER_SERIAL  "YOUR_SERIAL"      // 序列号（15 位）
 #define CFG_ACCESS_CODE     "YOUR_CODE"        // 访问码（8 位）
 
-// UI 风格（STYLE_BAMBU / CYBER / SHEIKAH / WHITE / INDUSTRIAL / NEON / PIXEL / SSD / F1 / GAUGE）
+// UI 风格（STYLE_BAMBU / CYBER / SHEIKAH / WHITE / INDUSTRIAL / NEON / PIXEL / SSD / F1 / GAUGE / GEIST / APPLE）
 #define CFG_UI_STYLE  STYLE_SSD
 ```
 
@@ -85,7 +85,7 @@ idf.py -p /dev/ttyACM0 flash
 
 ## UI 风格说明
 
-编译前在 `main/config.h` 中修改 `CFG_UI_STYLE` 选择，共 10 套：
+编译前在 `main/config.h` 中修改 `CFG_UI_STYLE` 选择，共 12 套：
 
 | 宏定义 | 特点 |
 |--------|------|
@@ -99,6 +99,8 @@ idf.py -p /dev/ttyACM0 flash
 | `STYLE_SSD` | 固态硬盘标签风（黑标签白印 + 金铜螺丝 + SATA 金手指） |
 | `STYLE_F1` | F1 转播计时风（碳黑 + 涂装色条行卡 + F1 红 + 旗黄计时） |
 | `STYLE_GAUGE` | 图形仪表盘风（六圆弧仪表环 + AMS 竖条电池，参考 BambuHelper） |
+| `STYLE_GEIST` | Geist 控制台风（纯黑 + Vercel 蓝 + 发丝线分区，参考 Vercel Geist） |
+| `STYLE_APPLE` | Apple 风（iOS 浅灰分组底 + 白色圆角卡片 + systemBlue，参考 iOS HIG） |
 
 全部风格均为 2 页分页：第 1 页打印状态（进度/温度/层高/剩余时间），第 2 页 AMS 料仓。视觉规格详见 [UI 设计说明](docs/UI-DESIGN.md)。
 
@@ -135,7 +137,7 @@ ai-passport-bambu-monitor/
 │       ├── ui_theme.h/c     # 主题色板 + 电池分档色 + 耗材色块
 │       ├── ui_lang.h        # 多语言文案宏
 │       ├── ui_monitor.h/c   # 风格派发 + 分页
-│       └── style_*.c        # 10 套风格实现（bambu/cyber/sheikah/white/industrial/neon/pixel/ssd/f1/gauge）
+│       └── style_*.c        # 12 套风格实现（bambu/cyber/sheikah/white/industrial/neon/pixel/ssd/f1/gauge/geist/apple）
 ├── docs/
 │   ├── README.md            # 开发文档（架构/数据流/构建）
 │   └── development-log.md   # 开发日志（踩坑记录）

@@ -208,6 +208,48 @@ static const ui_theme_colors_t theme_gauge = {
     .radius        = 10,        // 环形仪表风, 圆润
 };
 
+#elif CFG_UI_STYLE == STYLE_GEIST
+// 风格11: Geist 控制台风 (Vercel Geist 设计语言) — 纯黑底 + 灰阶层次 + 单一蓝强调
+// 层级靠排版与发丝线而非色块; 蓝只出现在活动位置 (进度条/页码), 保持克制
+static const ui_theme_colors_t theme_geist = {
+    .bg            = 0x000000,  // 纯黑
+    .card_bg       = 0x0A0A0A,  // 近黑 (平面分区, 卡片不描底色)
+    .header_bg     = 0x000000,
+    .footer_bg     = 0x000000,
+    .text_primary  = 0xEDEDED,  // Geist 正文白
+    .text_secondary= 0x8F8F8F,  // Geist 灰
+    .accent        = 0x0070F3,  // Vercel 蓝
+    .success       = 0x29A383,  // Geist 绿
+    .warning       = 0xF5A623,  // 琥珀
+    .error         = 0xE5484D,  // Geist 红
+    .border        = 0x222222,  // 发丝线灰
+    .gauge_nozzle  = 0xF5A623,  // 琥珀喷嘴
+    .gauge_bed     = 0x0070F3,  // 蓝热床
+    .gauge_chamber = 0x8E4EC6,  // Geist 紫腔体
+    .radius        = 8,         // Geist rounded-md
+};
+
+#elif CFG_UI_STYLE == STYLE_APPLE
+// 风格12: Apple 风 (iOS HIG) — 浅灰分组底 + 白色 inset 圆角卡片 + systemBlue 强调
+// 层级靠卡片分组与明度差; 分隔线/轨道用 systemGray, 语义色沿 iOS Settings 习惯
+static const ui_theme_colors_t theme_apple = {
+    .bg            = 0xF2F2F7,  // systemGroupedBackground
+    .card_bg       = 0xFFFFFF,  // 白色卡片 (secondarySystemGroupedBackground)
+    .header_bg     = 0xF2F2F7,
+    .footer_bg     = 0xF2F2F7,
+    .text_primary  = 0x000000,  // label
+    .text_secondary= 0x8E8E93,  // systemGray
+    .accent        = 0x007AFF,  // systemBlue
+    .success       = 0x34C759,  // systemGreen
+    .warning       = 0xFF9500,  // systemOrange
+    .error         = 0xFF3B30,  // systemRed
+    .border        = 0xE5E5EA,  // separator/轨道 (systemGray5, 色值近似)
+    .gauge_nozzle  = 0xFF9500,  // 橙喷嘴
+    .gauge_bed     = 0x007AFF,  // 蓝热床
+    .gauge_chamber = 0xAF52DE,  // systemPurple 腔体
+    .radius        = 12,        // inset grouped 圆角
+};
+
 #else
 // 默认使用 Bambu 风格
 static const ui_theme_colors_t theme_bambu = {
@@ -250,6 +292,10 @@ const ui_theme_colors_t *ui_theme_get_colors(void) {
     return &theme_f1;
 #elif CFG_UI_STYLE == STYLE_GAUGE
     return &theme_gauge;
+#elif CFG_UI_STYLE == STYLE_GEIST
+    return &theme_geist;
+#elif CFG_UI_STYLE == STYLE_APPLE
+    return &theme_apple;
 #else
     return &theme_bambu;
 #endif
@@ -276,6 +322,10 @@ const char *ui_theme_style_name(void) {
     return "F1";
 #elif CFG_UI_STYLE == STYLE_GAUGE
     return "Gauge";
+#elif CFG_UI_STYLE == STYLE_GEIST
+    return "Geist";
+#elif CFG_UI_STYLE == STYLE_APPLE
+    return "Apple";
 #else
     return "Unknown";
 #endif

@@ -97,6 +97,20 @@ lv_obj_t *s_content_area  = NULL;   // 内容容器
     #define STYLE_CUR_PAGE    style_gauge_current_page
     #define STYLE_NEXT        style_gauge_next_page
     #define STYLE_PREV        style_gauge_prev_page
+#elif CFG_UI_STYLE == STYLE_GEIST
+    #define STYLE_BUILD       style_geist_build
+    #define STYLE_UPDATE      style_geist_update
+    #define STYLE_PAGE_COUNT  style_geist_page_count
+    #define STYLE_CUR_PAGE    style_geist_current_page
+    #define STYLE_NEXT        style_geist_next_page
+    #define STYLE_PREV        style_geist_prev_page
+#elif CFG_UI_STYLE == STYLE_APPLE
+    #define STYLE_BUILD       style_apple_build
+    #define STYLE_UPDATE      style_apple_update
+    #define STYLE_PAGE_COUNT  style_apple_page_count
+    #define STYLE_CUR_PAGE    style_apple_current_page
+    #define STYLE_NEXT        style_apple_next_page
+    #define STYLE_PREV        style_apple_prev_page
 #endif
 
 // ---------------------------------------------------------------------------

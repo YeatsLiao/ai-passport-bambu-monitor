@@ -24,7 +24,7 @@
 #define CFG_MQTT_PORT       8883
 
 // ============================================================================
-// 3. UI 风格（10 选 1，烧录前改这一个宏）
+// 3. UI 风格（12 选 1，烧录前改这一个宏）
 //
 //   STYLE_BAMBU       拓竹原厂工业风 — 深蓝标题 + 白卡片 + 绿进度（参考 TRAE）
 //   STYLE_CYBER       赛博极简监控风 — 纯黑底 + 冰蓝霓虹
@@ -36,6 +36,8 @@
 //   STYLE_SSD         固态硬盘标签风 — 铝壳深灰 + 标签贴纸 + 活动指示灯
 //   STYLE_F1          F1 维修墙风    — 碳黑 + F1 红边框 + 计时塔/积分榜
 //   STYLE_GAUGE       图形仪表盘风   — 六圆弧仪表环 + AMS 竖条电池（参考 BambuHelper）
+//   STYLE_GEIST       Geist 控制台风 — 纯黑 + Vercel 蓝 + 发丝线分区（参考 Vercel Geist）
+//   STYLE_APPLE       Apple 风      — 浅灰分组底 + 白色圆角卡片 + systemBlue（参考 iOS HIG）
 // ============================================================================
 #define CFG_UI_STYLE  STYLE_BAMBU
 
@@ -49,6 +51,8 @@
 #define STYLE_SSD         8
 #define STYLE_F1          9
 #define STYLE_GAUGE       10
+#define STYLE_GEIST       11
+#define STYLE_APPLE       12
 
 // ============================================================================
 // 4. 组件排序（烧录前调整显示内容和顺序）

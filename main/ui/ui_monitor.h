@@ -92,4 +92,18 @@ void rebuild_page(void);
     int  style_gauge_current_page(void);
     void style_gauge_next_page(void);
     void style_gauge_prev_page(void);
+#elif CFG_UI_STYLE == STYLE_GEIST
+    void style_geist_build(void);
+    void style_geist_update(void);
+    int  style_geist_page_count(void);
+    int  style_geist_current_page(void);
+    void style_geist_next_page(void);
+    void style_geist_prev_page(void);
+#elif CFG_UI_STYLE == STYLE_APPLE
+    void style_apple_build(void);
+    void style_apple_update(void);
+    int  style_apple_page_count(void);
+    int  style_apple_current_page(void);
+    void style_apple_next_page(void);
+    void style_apple_prev_page(void);
 #endif

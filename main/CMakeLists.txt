@@ -16,6 +16,8 @@ idf_component_register(
          "ui/style_ssd.c"
          "ui/style_f1.c"
          "ui/style_gauge.c"
+         "ui/style_geist.c"
+         "ui/style_apple.c"
     INCLUDE_DIRS "."
     REQUIRES bsp esp_event esp_hw_support esp_netif esp_wifi esp_timer
              mqtt nvs_flash json lwip
