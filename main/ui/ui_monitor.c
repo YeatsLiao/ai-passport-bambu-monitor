@@ -92,7 +92,7 @@ void ui_monitor_show_setup_hint(void) {
     s_setup_overlay = ov;
     lv_obj_set_pos(ov, 0, 0);
     lv_obj_set_size(ov, 240, 320);
-    lv_obj_set_style_bg_color(ov, lv_color_hex(c->bg), 0);
+    lv_obj_set_style_bg_color(ov, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_bg_opa(ov, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(ov, 0, 0);
     lv_obj_set_style_pad_all(ov, 16, 0);
@@ -149,7 +149,7 @@ void ui_monitor_show_prov_mode(const char *ap_ssid) {
     if (!ov) return;
     lv_obj_set_pos(ov, 0, 0);
     lv_obj_set_size(ov, 240, 320);
-    lv_obj_set_style_bg_color(ov, lv_color_hex(c->bg), 0);
+    lv_obj_set_style_bg_color(ov, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_bg_opa(ov, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(ov, 0, 0);
     lv_obj_set_style_pad_all(ov, 16, 0);
@@ -174,7 +174,8 @@ void ui_monitor_show_prov_mode(const char *ap_ssid) {
         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 78);
     }
 
-    // 步骤 1: 手机连接热点 (热点名大一号, 用主题强调色突出)
+    // 步骤 1: 手机连接热点 (热点名用主文字色: 各套在卡面上均 ≥4.5:1;
+    // accent 仅留给图标/色块, 否则 Pixel 围巾橙 1.6:1 会重新看不清)
     lv_obj_t *s1 = lv_label_create(ov);
     if (s1) {
         lv_label_set_text_fmt(s1, "1. %s", L_PROV_STEP1);
@@ -186,7 +187,7 @@ void ui_monitor_show_prov_mode(const char *ap_ssid) {
     if (ssid_lbl) {
         lv_label_set_text(ssid_lbl, ap_ssid ? ap_ssid : "");
         lv_obj_set_style_text_font(ssid_lbl, L_FONT_NUM_BIG, 0);
-        lv_obj_set_style_text_color(ssid_lbl, lv_color_hex(c->accent), 0);
+        lv_obj_set_style_text_color(ssid_lbl, lv_color_hex(c->text_primary), 0);
         lv_obj_align(ssid_lbl, LV_ALIGN_TOP_MID, 0, 144);
     }
 
@@ -202,7 +203,7 @@ void ui_monitor_show_prov_mode(const char *ap_ssid) {
     if (url) {
         lv_label_set_text(url, L_PROV_URL);
         lv_obj_set_style_text_font(url, L_FONT_NUM_BIG, 0);
-        lv_obj_set_style_text_color(url, lv_color_hex(c->accent), 0);
+        lv_obj_set_style_text_color(url, lv_color_hex(c->text_primary), 0);
         lv_obj_align(url, LV_ALIGN_TOP_MID, 0, 214);
     }
 
