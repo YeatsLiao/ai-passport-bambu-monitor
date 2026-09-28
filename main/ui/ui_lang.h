@@ -39,6 +39,7 @@ typedef enum {
     UI_STR_FANS,
     UI_STR_COOLING,
     UI_STR_PART_FAN,
+    UI_STR_CHAMBER_FAN,
     UI_STR_EMPTY,
     UI_STR_NAV_HINT,
     UI_STR_MIN,
@@ -84,6 +85,7 @@ const lv_font_t *ui_lang_font_big(void);    // 20px 标题
 #define L_FANS              ui_lang_str(UI_STR_FANS)
 #define L_COOLING           ui_lang_str(UI_STR_COOLING)
 #define L_PART_FAN          ui_lang_str(UI_STR_PART_FAN)
+#define L_CHAMBER_FAN       ui_lang_str(UI_STR_CHAMBER_FAN)
 #define L_EMPTY             ui_lang_str(UI_STR_EMPTY)
 #define L_NAV_HINT          ui_lang_str(UI_STR_NAV_HINT)
 #define L_MIN               ui_lang_str(UI_STR_MIN)

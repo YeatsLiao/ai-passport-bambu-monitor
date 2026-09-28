@@ -34,13 +34,15 @@ static gauge_t    s_g[6];
 static lv_obj_t *s_prog_fill = NULL;    // 顶部细进度条填充
 static lv_obj_t *s_state_lbl = NULL;    // 状态文字 (右上)
 static lv_obj_t *s_eta_lbl   = NULL;    // ETA 大字
-static lv_obj_t *s_file_lbl  = NULL;    // 任务名 (单行截断)
+static lv_obj_t *s_fan_part0 = NULL;    // Page0 模型风扇 (左, 原任务名行)
+static lv_obj_t *s_fan_cham0 = NULL;    // Page0 腔体风扇 (右对齐)
 
 // Page 1: AMS 竖条电池
 static lv_obj_t *s_tube[5];       // 外框
 static lv_obj_t *s_fill[5];       // 底部填充块 (颜色=耗材实时色)
 static lv_obj_t *s_tube_pct[5];   // 余量百分比
-static lv_obj_t *s_file2_lbl  = NULL;   // 任务名
+static lv_obj_t *s_fan_part1  = NULL;   // Page1 模型风扇 (左, 原任务名行)
+static lv_obj_t *s_fan_cham1  = NULL;   // Page1 腔体风扇 (右对齐)
 static lv_obj_t *s_layer_lbl  = NULL;   // 层数行
 static lv_obj_t *s_eta2_lbl   = NULL;   // ETA 大字
 static lv_obj_t *s_cur_dot    = NULL;   // 当前耗材色点
@@ -199,13 +201,11 @@ static void build_page0(void) {
     mk_block(card, 0, 182, 208, 1, c->border);
     s_eta_lbl = mk_lbl(card, "ETA --:--", L_FONT_NUM_BIG, c->accent);
     if (s_eta_lbl) lv_obj_align(s_eta_lbl, LV_ALIGN_TOP_LEFT, 0, 183);
-    s_file_lbl = mk_lbl(card, L_EMPTY, L_FONT_TEXT, c->text_secondary);
-    if (s_file_lbl) {
-        // DOT 截断必须同时固定宽与高, 否则回退为 WRAP 变两行挤压下方元素
-        lv_label_set_long_mode(s_file_lbl, LV_LABEL_LONG_DOT);
-        lv_obj_set_size(s_file_lbl, 208, 17);
-        lv_obj_align(s_file_lbl, LV_ALIGN_TOP_LEFT, 0, 219);
-    }
+    // 底部: 风扇双读数 (左 模型风扇 / 右对齐 腔体风扇), 替换原任务名行
+    s_fan_part0 = mk_lbl(card, "", L_FONT_TEXT, c->text_secondary);
+    if (s_fan_part0) lv_obj_align(s_fan_part0, LV_ALIGN_TOP_LEFT, 0, 219);
+    s_fan_cham0 = mk_lbl(card, "", L_FONT_TEXT, c->text_secondary);
+    if (s_fan_cham0) lv_obj_align(s_fan_cham0, LV_ALIGN_TOP_RIGHT, 0, 219);
 }
 
 // ---------------------------------------------------------------------------
@@ -226,12 +226,11 @@ static void build_page1(void) {
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
     // ── 顶部: 任务名 + 层数 + ETA ──
-    s_file2_lbl = mk_lbl(card, L_EMPTY, L_FONT_TEXT, c->text_secondary);
-    if (s_file2_lbl) {
-        lv_label_set_long_mode(s_file2_lbl, LV_LABEL_LONG_DOT);
-        lv_obj_set_size(s_file2_lbl, 208, 18);
-        lv_obj_align(s_file2_lbl, LV_ALIGN_TOP_LEFT, 0, 0);
-    }
+    // 顶部: 风扇双读数 (左 模型风扇 / 右对齐 腔体风扇), 替换原任务名行
+    s_fan_part1 = mk_lbl(card, "", L_FONT_TEXT, c->text_secondary);
+    if (s_fan_part1) lv_obj_align(s_fan_part1, LV_ALIGN_TOP_LEFT, 0, 0);
+    s_fan_cham1 = mk_lbl(card, "", L_FONT_TEXT, c->text_secondary);
+    if (s_fan_cham1) lv_obj_align(s_fan_cham1, LV_ALIGN_TOP_RIGHT, 0, 0);
     s_layer_lbl = mk_lbl(card, "--/--", L_FONT_TEXT, c->text_secondary);
     if (s_layer_lbl) lv_label_set_text_fmt(s_layer_lbl, "%s --/--", L_LAYER);
     if (s_layer_lbl) lv_obj_align(s_layer_lbl, LV_ALIGN_TOP_LEFT, 0, 22);
@@ -254,17 +253,19 @@ static void build_page1(void) {
             // 必须清零 lv_obj 默认内边距, 否则填充块被推移+裁剪 (16px 宽只剩半截)
             lv_obj_set_style_pad_all(tube, 0, 0);
             lv_obj_set_style_radius(tube, 4, 0);
-            lv_obj_set_style_border_width(tube, 1, 0);
+            // 统一 2px 边框: 5 根管内腔都是 16×60, 填充条几何对所有槽一致
+            // (激活槽只改边框颜色不改宽度, 否则内腔缩小会把填充条挤偏/裁剪)
+            lv_obj_set_style_border_width(tube, 2, 0);
             lv_obj_set_style_border_color(tube, lv_color_hex(c->border), 0);
             lv_obj_set_style_bg_color(tube, lv_color_hex(c->card_bg), 0);
         }
         s_tube[i] = tube;
 
-        // 内部填充块 (底部对齐, 高度随余量伸缩; 内腔 16×60, 边距 2)
+        // 内部填充块 (底部对齐, 高度随余量伸缩; 内腔 16×60: 条宽 12 左右各留 2, 底边贴 y=60)
         lv_obj_t *fill = lv_obj_create(tube);
         if (fill) {
-            lv_obj_set_pos(fill, 2, 62);
-            lv_obj_set_size(fill, 16, 0);
+            lv_obj_set_pos(fill, 2, 60);
+            lv_obj_set_size(fill, 12, 0);
             lv_obj_remove_flag(fill, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
             lv_obj_set_style_radius(fill, 3, 0);
             lv_obj_set_style_border_width(fill, 0, 0);
@@ -277,7 +278,8 @@ static void build_page1(void) {
         char buf[12];
         if (i < 4) snprintf(buf, sizeof(buf), "#%d", i + 1);
         else       snprintf(buf, sizeof(buf), "%s", L_EXT);
-        lv_obj_t *lbl = mk_lbl(card, buf, L_FONT_NUM, c->text_secondary);
+        // 槽号标签含中文 (外置), 必须用随语言切换的 L_FONT_TEXT, Montserrat 会渲染成豆腐块
+        lv_obj_t *lbl = mk_lbl(card, buf, L_FONT_TEXT, c->text_secondary);
         if (lbl) {
             lv_obj_set_width(lbl, 48);
             lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
@@ -419,10 +421,15 @@ void style_gauge_update(void) {
         lv_label_set_text(s_eta2_lbl, buf);
     }
 
-    // 任务名 (两页)
-    if (st->gcode_file[0]) {
-        if (s_file_lbl)  lv_label_set_text(s_file_lbl, st->gcode_file);
-        if (s_file2_lbl) lv_label_set_text(s_file2_lbl, st->gcode_file);
+    // 风扇行 (两页): 模型风扇 = cooling_fan, 腔体风扇 = big_fan1 (空闲/未打印时如实显示 0%)
+    {
+        char fp[40], fc[40];
+        snprintf(fp, sizeof(fp), "%s %d%%", L_PART_FAN,    st->cooling_fan);
+        snprintf(fc, sizeof(fc), "%s %d%%", L_CHAMBER_FAN, st->big_fan1);
+        if (s_fan_part0) lv_label_set_text(s_fan_part0, fp);
+        if (s_fan_cham0) lv_label_set_text(s_fan_cham0, fc);
+        if (s_fan_part1) lv_label_set_text(s_fan_part1, fp);
+        if (s_fan_cham1) lv_label_set_text(s_fan_cham1, fc);
     }
 
     // ── Page 0: 六仪表环 ──
@@ -491,7 +498,7 @@ void style_gauge_update(void) {
             if (fh > 60) fh = 60;
             if (!empty && fh < 6) fh = 6;   // 有料但余量极低时留可见残条
             lv_obj_set_height(s_fill[i], fh);
-            lv_obj_set_y(s_fill[i], 62 - fh);
+            lv_obj_set_y(s_fill[i], 60 - fh);   // 底边贴内腔底部 (内腔高 60)
             if (t->translucent && !empty) {
                 lv_obj_set_style_bg_color(s_fill[i], lv_color_hex(c->text_secondary), 0);
                 lv_obj_set_style_bg_opa(s_fill[i], LV_OPA_30, 0);
@@ -500,10 +507,9 @@ void style_gauge_update(void) {
                 lv_obj_set_style_bg_opa(s_fill[i], LV_OPA_COVER, 0);
             }
 
-            // 当前料槽高亮边框
+            // 当前料槽高亮: 只改边框颜色, 宽度恒为 2 (保持内腔一致, 填充条不错位)
             bool active = (i < 4) ? t->active : (st->active_tray >= 4);
             if (s_tube[i]) {
-                lv_obj_set_style_border_width(s_tube[i], active ? 2 : 1, 0);
                 lv_obj_set_style_border_color(s_tube[i],
                     lv_color_hex(active ? c->accent : c->border), 0);
             }
