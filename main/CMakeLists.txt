@@ -5,6 +5,7 @@ idf_component_register(
          "app_config.c"
          "wifi_prov.c"
          "ui/ui_theme.c"
+         "ui/ui_lang.c"
          "ui/ui_monitor.c"
          "ui/fonts/lv_font_cn_14.c"
          "ui/fonts/lv_font_cn_20.c"

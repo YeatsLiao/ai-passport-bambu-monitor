@@ -11,6 +11,7 @@
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
+#include "../app_config.h"
 #include "../bambu_state.h"
 #include "../bambu_mqtt.h"
 
@@ -26,103 +27,55 @@ lv_obj_t *s_content_area  = NULL;   // 内容容器
 static lv_obj_t *s_setup_overlay = NULL;   // 首次使用配置指引卡 (NULL=未显示)
 
 // ---------------------------------------------------------------------------
-// 风格宏: 根据 CFG_UI_STYLE 选择对应的风格函数
+// 风格注册表: 全部 12 套风格都编译进固件, 运行时按 app_config.ui_style 选择
+// 索引 = STYLE_* 编号 - 1 (0..11)
 // ---------------------------------------------------------------------------
-#if CFG_UI_STYLE == STYLE_BAMBU
-    #define STYLE_BUILD       style_bambu_build
-    #define STYLE_UPDATE      style_bambu_update
-    #define STYLE_PAGE_COUNT  style_bambu_page_count
-    #define STYLE_CUR_PAGE    style_bambu_current_page
-    #define STYLE_NEXT        style_bambu_next_page
-    #define STYLE_PREV        style_bambu_prev_page
-#elif CFG_UI_STYLE == STYLE_CYBER
-    #define STYLE_BUILD       style_cyber_build
-    #define STYLE_UPDATE      style_cyber_update
-    #define STYLE_PAGE_COUNT  style_cyber_page_count
-    #define STYLE_CUR_PAGE    style_cyber_current_page
-    #define STYLE_NEXT        style_cyber_next_page
-    #define STYLE_PREV        style_cyber_prev_page
-#elif CFG_UI_STYLE == STYLE_SHEIKAH
-    #define STYLE_BUILD       style_sheikah_build
-    #define STYLE_UPDATE      style_sheikah_update
-    #define STYLE_PAGE_COUNT  style_sheikah_page_count
-    #define STYLE_CUR_PAGE    style_sheikah_current_page
-    #define STYLE_NEXT        style_sheikah_next_page
-    #define STYLE_PREV        style_sheikah_prev_page
-#elif CFG_UI_STYLE == STYLE_WHITE
-    #define STYLE_BUILD       style_white_build
-    #define STYLE_UPDATE      style_white_update
-    #define STYLE_PAGE_COUNT  style_white_page_count
-    #define STYLE_CUR_PAGE    style_white_current_page
-    #define STYLE_NEXT        style_white_next_page
-    #define STYLE_PREV        style_white_prev_page
-#elif CFG_UI_STYLE == STYLE_INDUSTRIAL
-    #define STYLE_BUILD       style_industrial_build
-    #define STYLE_UPDATE      style_industrial_update
-    #define STYLE_PAGE_COUNT  style_industrial_page_count
-    #define STYLE_CUR_PAGE    style_industrial_current_page
-    #define STYLE_NEXT        style_industrial_next_page
-    #define STYLE_PREV        style_industrial_prev_page
-#elif CFG_UI_STYLE == STYLE_NEON
-    #define STYLE_BUILD       style_neon_build
-    #define STYLE_UPDATE      style_neon_update
-    #define STYLE_PAGE_COUNT  style_neon_page_count
-    #define STYLE_CUR_PAGE    style_neon_current_page
-    #define STYLE_NEXT        style_neon_next_page
-    #define STYLE_PREV        style_neon_prev_page
-#elif CFG_UI_STYLE == STYLE_PIXEL
-    #define STYLE_BUILD       style_pixel_build
-    #define STYLE_UPDATE      style_pixel_update
-    #define STYLE_PAGE_COUNT  style_pixel_page_count
-    #define STYLE_CUR_PAGE    style_pixel_current_page
-    #define STYLE_NEXT        style_pixel_next_page
-    #define STYLE_PREV        style_pixel_prev_page
-#elif CFG_UI_STYLE == STYLE_SSD
-    #define STYLE_BUILD       style_ssd_build
-    #define STYLE_UPDATE      style_ssd_update
-    #define STYLE_PAGE_COUNT  style_ssd_page_count
-    #define STYLE_CUR_PAGE    style_ssd_current_page
-    #define STYLE_NEXT        style_ssd_next_page
-    #define STYLE_PREV        style_ssd_prev_page
-#elif CFG_UI_STYLE == STYLE_F1
-    #define STYLE_BUILD       style_f1_build
-    #define STYLE_UPDATE      style_f1_update
-    #define STYLE_PAGE_COUNT  style_f1_page_count
-    #define STYLE_CUR_PAGE    style_f1_current_page
-    #define STYLE_NEXT        style_f1_next_page
-    #define STYLE_PREV        style_f1_prev_page
-#elif CFG_UI_STYLE == STYLE_GAUGE
-    #define STYLE_BUILD       style_gauge_build
-    #define STYLE_UPDATE      style_gauge_update
-    #define STYLE_PAGE_COUNT  style_gauge_page_count
-    #define STYLE_CUR_PAGE    style_gauge_current_page
-    #define STYLE_NEXT        style_gauge_next_page
-    #define STYLE_PREV        style_gauge_prev_page
-#elif CFG_UI_STYLE == STYLE_GEIST
-    #define STYLE_BUILD       style_geist_build
-    #define STYLE_UPDATE      style_geist_update
-    #define STYLE_PAGE_COUNT  style_geist_page_count
-    #define STYLE_CUR_PAGE    style_geist_current_page
-    #define STYLE_NEXT        style_geist_next_page
-    #define STYLE_PREV        style_geist_prev_page
-#elif CFG_UI_STYLE == STYLE_APPLE
-    #define STYLE_BUILD       style_apple_build
-    #define STYLE_UPDATE      style_apple_update
-    #define STYLE_PAGE_COUNT  style_apple_page_count
-    #define STYLE_CUR_PAGE    style_apple_current_page
-    #define STYLE_NEXT        style_apple_next_page
-    #define STYLE_PREV        style_apple_prev_page
-#endif
+typedef struct {
+    void (*build)(void);
+    void (*update)(void);
+    int  (*page_count)(void);
+    int  (*cur_page)(void);
+    void (*next)(void);
+    void (*prev)(void);
+} style_ops_t;
+
+#define STYLE_OPS(name) { \
+    style_##name##_build, style_##name##_update, style_##name##_page_count, \
+    style_##name##_current_page, style_##name##_next_page, style_##name##_prev_page \
+}
+
+static const style_ops_t s_styles[12] = {
+    STYLE_OPS(bambu),      // 1  STYLE_BAMBU
+    STYLE_OPS(cyber),      // 2  STYLE_CYBER
+    STYLE_OPS(sheikah),    // 3  STYLE_SHEIKAH
+    STYLE_OPS(white),      // 4  STYLE_WHITE
+    STYLE_OPS(industrial), // 5  STYLE_INDUSTRIAL
+    STYLE_OPS(neon),       // 6  STYLE_NEON
+    STYLE_OPS(pixel),      // 7  STYLE_PIXEL
+    STYLE_OPS(ssd),        // 8  STYLE_SSD
+    STYLE_OPS(f1),         // 9  STYLE_F1
+    STYLE_OPS(gauge),      // 10 STYLE_GAUGE
+    STYLE_OPS(geist),      // 11 STYLE_GEIST
+    STYLE_OPS(apple),      // 12 STYLE_APPLE
+};
+
+// 当前风格操作集 (配置值非法时回退 Bambu)
+static const style_ops_t *cur_style(void) {
+    uint8_t s = app_config_get()->ui_style;
+    if (s < 1 || s > 12) s = STYLE_BAMBU;
+    return &s_styles[s - 1];
+}
 
 // ---------------------------------------------------------------------------
 // 页面重建（只清理内容区域，标题栏和底部栏保持不变）
 // ---------------------------------------------------------------------------
 void rebuild_page(void) {
     // 当前风格使用显示/隐藏切换, 此函数保留供兼容
-    STYLE_BUILD();
+    const style_ops_t *st = cur_style();
+    st->build();
     ESP_LOGI(TAG, "页面已重建 (style=%s, page=%d/%d)",
              ui_theme_style_name(),
-             STYLE_CUR_PAGE() + 1, STYLE_PAGE_COUNT());
+             st->cur_page() + 1, st->page_count());
 }
 
 // ---------------------------------------------------------------------------
@@ -224,7 +177,7 @@ void ui_monitor_show_prov_mode(const char *ap_ssid) {
     // 步骤 1: 手机连接热点 (热点名大一号, 用主题强调色突出)
     lv_obj_t *s1 = lv_label_create(ov);
     if (s1) {
-        lv_label_set_text(s1, "1. " L_PROV_STEP1);
+        lv_label_set_text_fmt(s1, "1. %s", L_PROV_STEP1);
         lv_obj_set_style_text_font(s1, L_FONT_TEXT, 0);
         lv_obj_set_style_text_color(s1, lv_color_hex(c->text_secondary), 0);
         lv_obj_align(s1, LV_ALIGN_TOP_MID, 0, 122);
@@ -240,7 +193,7 @@ void ui_monitor_show_prov_mode(const char *ap_ssid) {
     // 步骤 2: 浏览器打开 (地址纯 ASCII, 用 Montserrat 数字字体清晰易读)
     lv_obj_t *s2 = lv_label_create(ov);
     if (s2) {
-        lv_label_set_text(s2, "2. " L_PROV_STEP2);
+        lv_label_set_text_fmt(s2, "2. %s", L_PROV_STEP2);
         lv_obj_set_style_text_font(s2, L_FONT_TEXT, 0);
         lv_obj_set_style_text_color(s2, lv_color_hex(c->text_secondary), 0);
         lv_obj_align(s2, LV_ALIGN_TOP_MID, 0, 192);
@@ -256,7 +209,7 @@ void ui_monitor_show_prov_mode(const char *ap_ssid) {
     // 步骤 3: 说明 (自动换行)
     lv_obj_t *s3 = lv_label_create(ov);
     if (s3) {
-        lv_label_set_text(s3, "3. " L_PROV_STEP3);
+        lv_label_set_text_fmt(s3, "3. %s", L_PROV_STEP3);
         lv_obj_set_style_text_font(s3, L_FONT_TEXT, 0);
         lv_obj_set_style_text_color(s3, lv_color_hex(c->text_secondary), 0);
         lv_obj_set_width(s3, 208);
@@ -281,7 +234,7 @@ static void refresh_timer_cb(lv_timer_t *timer) {
     }
     // 配网指引显示时跳过背景刷新 (省 CPU, 避免看门狗超时)
     if (s_setup_overlay) return;
-    STYLE_UPDATE();
+    cur_style()->update();
 }
 
 // ---------------------------------------------------------------------------
@@ -296,7 +249,7 @@ void ui_monitor_enter(void) {
     lv_screen_load(s_scr);
 
     // 由风格 build 函数创建标题栏/底部栏/内容区（使用主题颜色）
-    STYLE_BUILD();
+    cur_style()->build();
 
     s_refresh_timer = lv_timer_create(refresh_timer_cb, 1000, NULL);
     ESP_LOGI(TAG, "监控页面已加载 (style=%s)", ui_theme_style_name());
@@ -319,10 +272,10 @@ void ui_monitor_key(bsp_btn_t btn, bsp_btn_ev_t ev) {
 
     switch (btn) {
         case BSP_BTN_UP:
-            STYLE_PREV();
+            cur_style()->prev();
             break;
         case BSP_BTN_DOWN:
-            STYLE_NEXT();
+            cur_style()->next();
             break;
         case BSP_BTN_OK:
             bambu_mqtt_pushall();

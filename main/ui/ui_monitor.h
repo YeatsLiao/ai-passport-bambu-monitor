@@ -26,90 +26,26 @@ void ui_monitor_show_prov_mode(const char *ap_ssid);
 void rebuild_page(void);
 
 // ---------------------------------------------------------------------------
-// 风格接口声明（每个风格文件实现以下函数）
+// 风格接口声明（每个风格文件实现以下函数, 全部编译, 运行时由注册表选择）
 // ---------------------------------------------------------------------------
-#if CFG_UI_STYLE == STYLE_BAMBU
-    void style_bambu_build(void);
-    void style_bambu_update(void);
-    int  style_bambu_page_count(void);
-    int  style_bambu_current_page(void);
-    void style_bambu_next_page(void);
-    void style_bambu_prev_page(void);
-#elif CFG_UI_STYLE == STYLE_CYBER
-    void style_cyber_build(void);
-    void style_cyber_update(void);
-    int  style_cyber_page_count(void);
-    int  style_cyber_current_page(void);
-    void style_cyber_next_page(void);
-    void style_cyber_prev_page(void);
-#elif CFG_UI_STYLE == STYLE_SHEIKAH
-    void style_sheikah_build(void);
-    void style_sheikah_update(void);
-    int  style_sheikah_page_count(void);
-    int  style_sheikah_current_page(void);
-    void style_sheikah_next_page(void);
-    void style_sheikah_prev_page(void);
-#elif CFG_UI_STYLE == STYLE_WHITE
-    void style_white_build(void);
-    void style_white_update(void);
-    int  style_white_page_count(void);
-    int  style_white_current_page(void);
-    void style_white_next_page(void);
-    void style_white_prev_page(void);
-#elif CFG_UI_STYLE == STYLE_INDUSTRIAL
-    void style_industrial_build(void);
-    void style_industrial_update(void);
-    int  style_industrial_page_count(void);
-    int  style_industrial_current_page(void);
-    void style_industrial_next_page(void);
-    void style_industrial_prev_page(void);
-#elif CFG_UI_STYLE == STYLE_NEON
-    void style_neon_build(void);
-    void style_neon_update(void);
-    int  style_neon_page_count(void);
-    int  style_neon_current_page(void);
-    void style_neon_next_page(void);
-    void style_neon_prev_page(void);
-#elif CFG_UI_STYLE == STYLE_PIXEL
-    void style_pixel_build(void);
-    void style_pixel_update(void);
-    int  style_pixel_page_count(void);
-    int  style_pixel_current_page(void);
-    void style_pixel_next_page(void);
-    void style_pixel_prev_page(void);
-#elif CFG_UI_STYLE == STYLE_SSD
-    void style_ssd_build(void);
-    void style_ssd_update(void);
-    int  style_ssd_page_count(void);
-    int  style_ssd_current_page(void);
-    void style_ssd_next_page(void);
-    void style_ssd_prev_page(void);
-#elif CFG_UI_STYLE == STYLE_F1
-    void style_f1_build(void);
-    void style_f1_update(void);
-    int  style_f1_page_count(void);
-    int  style_f1_current_page(void);
-    void style_f1_next_page(void);
-    void style_f1_prev_page(void);
-#elif CFG_UI_STYLE == STYLE_GAUGE
-    void style_gauge_build(void);
-    void style_gauge_update(void);
-    int  style_gauge_page_count(void);
-    int  style_gauge_current_page(void);
-    void style_gauge_next_page(void);
-    void style_gauge_prev_page(void);
-#elif CFG_UI_STYLE == STYLE_GEIST
-    void style_geist_build(void);
-    void style_geist_update(void);
-    int  style_geist_page_count(void);
-    int  style_geist_current_page(void);
-    void style_geist_next_page(void);
-    void style_geist_prev_page(void);
-#elif CFG_UI_STYLE == STYLE_APPLE
-    void style_apple_build(void);
-    void style_apple_update(void);
-    int  style_apple_page_count(void);
-    int  style_apple_current_page(void);
-    void style_apple_next_page(void);
-    void style_apple_prev_page(void);
-#endif
+// 风格函数接口: 每个风格一组, 顺序与 STYLE_* 编号 (1-12) 对应
+#define UI_STYLE_OPS(name) \
+    void style_##name##_build(void); \
+    void style_##name##_update(void); \
+    int  style_##name##_page_count(void); \
+    int  style_##name##_current_page(void); \
+    void style_##name##_next_page(void); \
+    void style_##name##_prev_page(void);
+
+UI_STYLE_OPS(bambu)
+UI_STYLE_OPS(cyber)
+UI_STYLE_OPS(sheikah)
+UI_STYLE_OPS(white)
+UI_STYLE_OPS(industrial)
+UI_STYLE_OPS(neon)
+UI_STYLE_OPS(pixel)
+UI_STYLE_OPS(ssd)
+UI_STYLE_OPS(f1)
+UI_STYLE_OPS(gauge)
+UI_STYLE_OPS(geist)
+UI_STYLE_OPS(apple)

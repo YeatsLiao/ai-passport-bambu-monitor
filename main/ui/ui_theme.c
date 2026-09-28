@@ -1,11 +1,11 @@
-// main/ui/ui_theme.c —— 10 套 UI 配色方案实现
-// 只编译当前选中风格的配色，避免 unused-const-variable 警告
+// main/ui/ui_theme.c —— 12 套 UI 配色方案实现
+// 全部风格都编译进固件, 运行时由 app_config.ui_style 选择 (配网页可切换)
 #include "ui_theme.h"
 #include "ui_lang.h"
+#include "../app_config.h"
 #include <string.h>
 #include <stdlib.h>
 
-#if CFG_UI_STYLE == STYLE_BAMBU
 // 风格1: 拓竹原厂工业风 — 深蓝标题 + 白卡片 + 绿进度
 static const ui_theme_colors_t theme_bambu = {
     .bg            = 0x1A2332,  // 深蓝灰底
@@ -25,7 +25,6 @@ static const ui_theme_colors_t theme_bambu = {
     .radius        = 6,
 };
 
-#elif CFG_UI_STYLE == STYLE_CYBER
 // 风格2: 赛博极简监控风 — 纯黑底 + 冰蓝霓虹
 static const ui_theme_colors_t theme_cyber = {
     .bg            = 0x0A0A0A,  // 纯黑
@@ -45,7 +44,6 @@ static const ui_theme_colors_t theme_cyber = {
     .radius        = 2,
 };
 
-#elif CFG_UI_STYLE == STYLE_SHEIKAH
 // 风格3: 希卡石板风 — 深蓝科技 + 青蓝冷光
 static const ui_theme_colors_t theme_sheikah = {
     .bg            = 0x0D1B2A,  // 希卡深蓝
@@ -65,7 +63,6 @@ static const ui_theme_colors_t theme_sheikah = {
     .radius        = 4,
 };
 
-#elif CFG_UI_STYLE == STYLE_WHITE
 // 风格4: 纯白素雅风 — 白底灰字 + 淡蓝提示
 static const ui_theme_colors_t theme_white = {
     .bg            = 0xF5F5F5,  // 浅灰白
@@ -85,7 +82,6 @@ static const ui_theme_colors_t theme_white = {
     .radius        = 8,
 };
 
-#elif CFG_UI_STYLE == STYLE_INDUSTRIAL
 // 风格5: 硬核工控风 — 深灰黑 + 绿/黄/红状态灯
 static const ui_theme_colors_t theme_industrial = {
     .bg            = 0x1A1A1A,  // 深灰黑
@@ -105,7 +101,6 @@ static const ui_theme_colors_t theme_industrial = {
     .radius        = 0,         // 无圆角，硬朗
 };
 
-#elif CFG_UI_STYLE == STYLE_NEON
 // 风格6: 极简霓虹极客风 — 哑光黑 + 浅紫/浅青
 static const ui_theme_colors_t theme_neon = {
     .bg            = 0x121212,  // 哑光黑
@@ -125,7 +120,6 @@ static const ui_theme_colors_t theme_neon = {
     .radius        = 10,
 };
 
-#elif CFG_UI_STYLE == STYLE_PIXEL
 // 风格7: 像素机器人风 — 移植自 ai-passport 官网 UI (ui_pixel.h 调色板)
 // 天空蓝底 + 纸牌米白卡片 + 墨黑粗描边 + 草地绿, 全部直角 (radius 0)
 static const ui_theme_colors_t theme_pixel = {
@@ -146,7 +140,6 @@ static const ui_theme_colors_t theme_pixel = {
     .radius        = 0,         // 像素风: 一律直角
 };
 
-#elif CFG_UI_STYLE == STYLE_SSD
 // 风格8: 2.5 寸固态硬盘标签风 — 参照实物盘面 (黑色盘身 + 黑色标签白字印刷):
 // 盘身哑光黑 + 黑标签印刷白字 + 金铜螺丝/SATA 金手指强调 + 活动指示灯绿
 static const ui_theme_colors_t theme_ssd = {
@@ -167,7 +160,6 @@ static const ui_theme_colors_t theme_ssd = {
     .radius        = 2,         // SSD 圆角极小
 };
 
-#elif CFG_UI_STYLE == STYLE_F1
 // 风格9: F1 维修墙 (Pit Wall) 风 — 碳黑底 + F1 红边框条 + 计时塔排版
 // AMS 页做成车队积分榜: 排位号红 + 耗材色标当车队色 + 余量横条
 static const ui_theme_colors_t theme_f1 = {
@@ -188,7 +180,6 @@ static const ui_theme_colors_t theme_f1 = {
     .radius        = 2,         // 赛事面板几乎全直角
 };
 
-#elif CFG_UI_STYLE == STYLE_GAUGE
 // 风格10: 图形仪表盘风 (参考 BambuHelper) — 近黑底 + 亮绿强调 + 橙喷嘴/青热床圆弧环
 static const ui_theme_colors_t theme_gauge = {
     .bg            = 0x090B09,  // 近黑微绿
@@ -208,7 +199,6 @@ static const ui_theme_colors_t theme_gauge = {
     .radius        = 10,        // 环形仪表风, 圆润
 };
 
-#elif CFG_UI_STYLE == STYLE_GEIST
 // 风格11: Geist 控制台风 (Vercel Geist 设计语言) — 纯黑底 + 灰阶层次 + 单一蓝强调
 // 层级靠排版与发丝线而非色块; 蓝只出现在活动位置 (进度条/页码), 保持克制
 static const ui_theme_colors_t theme_geist = {
@@ -229,7 +219,6 @@ static const ui_theme_colors_t theme_geist = {
     .radius        = 8,         // Geist rounded-md
 };
 
-#elif CFG_UI_STYLE == STYLE_APPLE
 // 风格12: Apple 风 (iOS HIG) — 浅灰分组底 + 白色 inset 圆角卡片 + systemBlue 强调
 // 层级靠卡片分组与明度差; 分隔线/轨道用 systemGray, 语义色沿 iOS Settings 习惯
 static const ui_theme_colors_t theme_apple = {
@@ -250,85 +239,34 @@ static const ui_theme_colors_t theme_apple = {
     .radius        = 12,        // inset grouped 圆角
 };
 
-#else
-// 默认使用 Bambu 风格
-static const ui_theme_colors_t theme_bambu = {
-    .bg            = 0x1A2332,
-    .card_bg       = 0xFFFFFF,
-    .header_bg     = 0x1565C0,
-    .footer_bg     = 0x2E7D32,
-    .text_primary  = 0x212121,
-    .text_secondary= 0x757575,
-    .accent        = 0x43A047,
-    .success       = 0x43A047,
-    .warning       = 0xF9A825,
-    .error         = 0xE53935,
-    .border        = 0xE0E0E0,
-    .gauge_nozzle  = 0xE65100,
-    .gauge_bed     = 0x1565C0,
-    .gauge_chamber = 0x6A1B9A,
-    .radius        = 6,
+// ---------------------------------------------------------------------------
+// 风格注册表: 下标 = STYLE_* 编号 - 1 (与 ui_monitor.c 的 s_styles 顺序一致)
+// ---------------------------------------------------------------------------
+static const ui_theme_colors_t *const s_theme_list[12] = {
+    &theme_bambu, &theme_cyber, &theme_sheikah, &theme_white,
+    &theme_industrial, &theme_neon, &theme_pixel, &theme_ssd,
+    &theme_f1, &theme_gauge, &theme_geist, &theme_apple,
 };
-#endif
+
+static const char *const s_name_list[12] = {
+    "Bambu", "Cyber", "Sheikah", "White",
+    "Industrial", "Neon", "Pixel", "SSD",
+    "F1", "Gauge", "Geist", "Apple",
+};
+
+static int current_style_idx(void) {
+    uint8_t s = app_config_get()->ui_style;
+    return (s >= 1 && s <= 12) ? (int)s - 1 : -1;
+}
 
 const ui_theme_colors_t *ui_theme_get_colors(void) {
-#if CFG_UI_STYLE == STYLE_BAMBU
-    return &theme_bambu;
-#elif CFG_UI_STYLE == STYLE_CYBER
-    return &theme_cyber;
-#elif CFG_UI_STYLE == STYLE_SHEIKAH
-    return &theme_sheikah;
-#elif CFG_UI_STYLE == STYLE_WHITE
-    return &theme_white;
-#elif CFG_UI_STYLE == STYLE_INDUSTRIAL
-    return &theme_industrial;
-#elif CFG_UI_STYLE == STYLE_NEON
-    return &theme_neon;
-#elif CFG_UI_STYLE == STYLE_PIXEL
-    return &theme_pixel;
-#elif CFG_UI_STYLE == STYLE_SSD
-    return &theme_ssd;
-#elif CFG_UI_STYLE == STYLE_F1
-    return &theme_f1;
-#elif CFG_UI_STYLE == STYLE_GAUGE
-    return &theme_gauge;
-#elif CFG_UI_STYLE == STYLE_GEIST
-    return &theme_geist;
-#elif CFG_UI_STYLE == STYLE_APPLE
-    return &theme_apple;
-#else
-    return &theme_bambu;
-#endif
+    int i = current_style_idx();
+    return (i >= 0) ? s_theme_list[i] : &theme_bambu;   // 非法配置回退 Bambu
 }
 
 const char *ui_theme_style_name(void) {
-#if CFG_UI_STYLE == STYLE_BAMBU
-    return "Bambu";
-#elif CFG_UI_STYLE == STYLE_CYBER
-    return "Cyber";
-#elif CFG_UI_STYLE == STYLE_SHEIKAH
-    return "Sheikah";
-#elif CFG_UI_STYLE == STYLE_WHITE
-    return "White";
-#elif CFG_UI_STYLE == STYLE_INDUSTRIAL
-    return "Industrial";
-#elif CFG_UI_STYLE == STYLE_NEON
-    return "Neon";
-#elif CFG_UI_STYLE == STYLE_PIXEL
-    return "Pixel";
-#elif CFG_UI_STYLE == STYLE_SSD
-    return "SSD";
-#elif CFG_UI_STYLE == STYLE_F1
-    return "F1";
-#elif CFG_UI_STYLE == STYLE_GAUGE
-    return "Gauge";
-#elif CFG_UI_STYLE == STYLE_GEIST
-    return "Geist";
-#elif CFG_UI_STYLE == STYLE_APPLE
-    return "Apple";
-#else
-    return "Unknown";
-#endif
+    int i = current_style_idx();
+    return (i >= 0) ? s_name_list[i] : "Unknown";
 }
 
 // ---------------------------------------------------------------------------
