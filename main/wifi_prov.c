@@ -29,6 +29,13 @@
 #define AP_SSID_PREFIX  "Passport-"
 #define AP_MAX_CONN     4
 
+// 运行时显示偏好取值范围 (与 config.example.h 的 STYLE_*/LANG_* 一致,
+// 此处独立定义避免配网层依赖编译期 config.h)
+#define PROV_STYLE_MIN  1     // STYLE_BAMBU
+#define PROV_STYLE_MAX  12    // STYLE_APPLE
+#define PROV_LANG_EN    1     // LANG_EN
+#define PROV_LANG_CN    2     // LANG_CN
+
 static const char *TAG = "wifi_prov";
 
 static char s_ap_ssid[32] = AP_SSID_PREFIX;
@@ -182,6 +189,16 @@ static esp_err_t save_post(httpd_req_t *req) {
     if (val[0]) strncpy(cfg.access_code, val, sizeof(cfg.access_code) - 1);
     else strncpy(cfg.access_code, old->access_code, sizeof(cfg.access_code) - 1);
 
+    // 显示偏好: 非法/缺失时沿用旧值 (下拉框总会被提交, 旧值兜底防止截断请求清空)
+    form_field(body, "style", val, sizeof(val));
+    int st = atoi(val);
+    cfg.ui_style = (st >= PROV_STYLE_MIN && st <= PROV_STYLE_MAX)
+                       ? (uint8_t)st : old->ui_style;
+    form_field(body, "lang", val, sizeof(val));
+    int lg = atoi(val);
+    cfg.lang = (lg == PROV_LANG_EN || lg == PROV_LANG_CN)
+                   ? (uint8_t)lg : old->lang;
+
     // 校验: 必填项 (密码/访问码可由旧值兜底, 已配置过才允许留空)
     const char *err = NULL;
     if (!cfg.wifi_ssid[0]) err = "WiFi 名称不能为空";
@@ -218,8 +235,9 @@ bad_request:
     return ESP_OK;
 }
 
-// 配页静态存储: httpd 单线程顺序处理, 用 static 避免 6KB 占用栈内存
-static char s_page[6144];
+// 配页静态存储: httpd 单线程顺序处理, 用 static 避免大数组占用栈内存
+// (含风格/语言下拉框选项后页面 ~6KB, 预留到 8KB)
+static char s_page[8192];
 
 // ---------------------------------------------------------------------------
 // WiFi 扫描接口 (GET /api/scan)
@@ -280,6 +298,31 @@ static esp_err_t root_get(httpd_req_t *req) {
     bool have_pass = cfg->wifi_pass[0] != '\0';
     bool have_code = cfg->access_code[0] != '\0';
 
+    // 风格/语言下拉框选项: 预置当前保存值为 selected。
+    // 名称与 ui_theme_style_name() 一致; static 避免压 httpd 栈。
+    static const char *const style_names[PROV_STYLE_MAX] = {
+        "Bambu", "Cyber", "Sheikah", "White", "Industrial", "Neon",
+        "Pixel", "SSD", "F1", "Gauge", "Geist", "Apple"
+    };
+    static char style_opts[768];
+    int soff = 0;
+    for (int i = 0; i < PROV_STYLE_MAX; i++) {
+        if (soff >= (int)sizeof(style_opts) - 1) break;
+        int w = snprintf(style_opts + soff, sizeof(style_opts) - soff,
+                         "<option value=\"%d\"%s>%d \u00b7 %s</option>",
+                         i + 1, cfg->ui_style == (uint8_t)(i + 1) ? " selected" : "",
+                         i + 1, style_names[i]);
+        if (w < 0) break;
+        soff += w;
+        if (soff >= (int)sizeof(style_opts)) soff = (int)sizeof(style_opts) - 1;
+    }
+    static char lang_opts[128];
+    snprintf(lang_opts, sizeof(lang_opts),
+             "<option value=\"%d\"%s>English</option>"
+             "<option value=\"%d\"%s>\u4e2d\u6587</option>",
+             PROV_LANG_EN, cfg->lang == PROV_LANG_EN ? " selected" : "",
+             PROV_LANG_CN, cfg->lang == PROV_LANG_CN ? " selected" : "");
+
     snprintf(s_page, sizeof(s_page),
 "<!DOCTYPE html><html lang=\"zh\"><head><meta charset=\"utf-8\">"
 "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">"
@@ -297,6 +340,7 @@ static esp_err_t root_get(httpd_req_t *req) {
 "label em{font-style:normal;color:#009624}"
 "input{width:100%%;padding:12px;border:1.5px solid #e2e5e9;border-radius:12px;font-size:16px;background:#f7f8fa;color:#111;transition:border-color .2s,box-shadow .2s;-webkit-appearance:none}"
 "input:focus{outline:none;border-color:#00ae42;background:#fff;box-shadow:0 0 0 3px rgba(0,174,66,.13)}"
+"select{width:100%%;padding:12px;border:1.5px solid #e2e5e9;border-radius:12px;font-size:16px;background:#f7f8fa;color:#111;-webkit-appearance:none}"
 "button{width:100%%;margin-top:28px;padding:14px;border:0;border-radius:14px;"
 "background:linear-gradient(135deg,#00c853,#009624);color:#fff;font-size:16px;font-weight:700;"
 "box-shadow:0 8px 20px rgba(0,174,66,.32);cursor:pointer}"
@@ -323,6 +367,11 @@ static esp_err_t root_get(httpd_req_t *req) {
 "<input name=\"serial\" required maxlength=\"30\" value=\"%s\" placeholder=\"打印机序列号\" autocomplete=\"off\">"
 "<label>访问码（8 位，打印机 设置→网络）%s</label>"
 "<input name=\"code\" maxlength=\"32\" %splaceholder=\"%s\" autocomplete=\"off\">"
+"<div class=\"sec\">\u663e\u793a\u8bbe\u7f6e \u00b7 \u91cd\u542f\u540e\u751f\u6548</div>"
+"<label>\u754c\u9762\u98ce\u683c</label>"
+"<select name=\"style\">%s</select>"
+"<label>\u754c\u9762\u8bed\u8a00 / Language</label>"
+"<select name=\"lang\">%s</select>"
 "<button type=\"submit\">保存并重启设备</button>"
 "</form></div>"
 "<div class=\"foot\">\u914d\u7f6e\u4ec5\u4fdd\u5b58\u5728\u8bbe\u5907\u672c\u5730，\u4e0d\u4f1a\u4e0a\u4f20\u4efb\u4f55\u670d\u52a1\u5668<br>\u6b64\u70ed\u70b9\u65e0\u4e92\u8054\u7f51\u5c5e\u6b63\u5e38\u73b0\u8c61，\u76f4\u63a5\u586b\u5199\u8868\u5355\u5373\u53ef</div>"
@@ -348,7 +397,8 @@ static esp_err_t root_get(httpd_req_t *req) {
         esc_ip, esc_ser,
         have_code ? "（已配置，不改留空）" : " <em>*</em>",
         have_code ? "" : "required ",
-        have_code ? "不改请留空" : "必填");
+        have_code ? "不改请留空" : "必填",
+        style_opts, lang_opts);
 
     httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, s_page, HTTPD_RESP_USE_STRLEN);
