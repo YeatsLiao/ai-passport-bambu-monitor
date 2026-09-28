@@ -10,6 +10,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define APP_COMP_MAX 9        // 可选组件总数 (编号 1-9)
+
 typedef struct {
     char wifi_ssid[33];        // 2.4GHz WiFi 名称
     char wifi_pass[65];        // WiFi 密码
@@ -18,6 +20,8 @@ typedef struct {
     char access_code[33];      // 打印机访问码 (8 位, 仅局域网模式)
     uint8_t ui_style;          // UI 风格 (STYLE_BAMBU..STYLE_APPLE, 1-12)
     uint8_t lang;              // 界面语言 (LANG_EN=1 / LANG_CN=2)
+    uint8_t comp_order[APP_COMP_MAX];  // 有序组件子集 (值 1-9), 前 comp_count 个有效
+    uint8_t comp_count;                // 0 = 未配置, 各风格使用自身默认顺序
 } app_config_t;
 
 // 初始化 NVS 并加载配置 (NVS 无记录时回退到 config.h 编译期默认值)
@@ -31,3 +35,12 @@ bool app_config_is_provisioned(void);
 
 // 保存配置到 NVS (整体覆盖)
 esp_err_t app_config_save(const app_config_t *cfg);
+
+// 读取运行时组件顺序: 把已配置的有序子集写入 out (最多 max 个), 返回写入个数;
+// 未配置 (comp_count==0) 时返回 0, 调用方应回落到本风格默认顺序。
+int app_config_comp_order(int *out, int max);
+
+// 解析配网页提交的 CSV 顺序串 (如 "5,4,1,2,6,8") 到 cfg->comp_order/comp_count。
+// 校验编号 1-9、去重、上限 APP_COMP_MAX; 空串或全非法 -> comp_count=0 (走默认)。
+// 返回解析出的有效个数。
+int app_config_set_comp_order_csv(app_config_t *cfg, const char *csv);
