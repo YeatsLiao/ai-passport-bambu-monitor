@@ -1,103 +1,103 @@
-// main/ui/ui_lang.h —— 中英文字符串宏 + 字体宏（编译期切换）
+// main/ui/ui_lang.h —— 中英文字符串 + 字体: 运行时切换
 //
-// 通过 config.h 的 CFG_LANG 控制:
-//   CFG_LANG = LANG_EN  → 英文, 文字用 Montserrat
-//   CFG_LANG = LANG_CN  → 中文, 文字用裁剪版 Noto Sans SC (tools/gen_cn_font.js 生成)
+// 语言不再依赖编译期 CFG_LANG: 配网页选择 → NVS 持久化 (app_config.lang)
+// → 重启后本模块按运行时值返回对应文案与字体。
+// config.h 的 CFG_LANG 仅作为 NVS 无记录时的默认值。
 //
-// 字体宏使用规则:
+// 宏使用规则 (与旧版一致, 调用方无感):
 //   L_FONT_TEXT / L_FONT_TEXT_BIG → 含本地化文字的标签 (随语言切换字体)
-//   L_FONT_NUM*                  → 纯数字/百分比/时间标签 (始终 Montserrat, 有 28/48 大字号)
-//   L_FONT_SYMBOL*               → LV_SYMBOL_* 图标标签 (符号字形只在 Montserrat 内)
+//   L_FONT_NUM*                   → 纯数字/百分比/时间标签 (始终 Montserrat)
+//   L_FONT_SYMBOL*                → LV_SYMBOL_* 图标标签 (符号字形只在 Montserrat 内)
+//
+// ⚠ L_* 现在展开为函数调用, 不能再与相邻字符串字面量做编译期拼接;
+//   需要拼接处改用 "%s %s" 双参数形式。
 #pragma once
 
-#include "../config.h"
 #include "lvgl.h"
 #include "fonts/lv_font_cn.h"
 
-#if CFG_LANG == LANG_CN
-    // 中文（裁剪版 Noto Sans SC）
-    #define L_TITLE_BAMBU       "Bambu"
-    #define L_CONNECTED         "已连接"
-    #define L_CONNECTING        "连接中..."
-    #define L_DISCONNECTED      "已断开"
-    #define L_NOZZLE            "喷嘴"
-    #define L_BED               "热床"
-    #define L_CHAMBER           "腔体"
-    #define L_LAYER             "层数"
-    #define L_REMAIN            "剩余"
-    #define L_PROGRESS          "进度"
-    #define L_SPEED             "速度"
-    #define L_STATE             "状态"
-    #define L_STATE_IDLE        "空闲"
-    #define L_STATE_RUNNING     "打印中"
-    #define L_STATE_PAUSE       "已暂停"
-    #define L_STATE_FINISH      "已完成"
-    #define L_STATE_FAILED      "失败"
-    #define L_STATE_PREPARE     "准备中"
-    #define L_AMS               "AMS"
-    #define L_EXT               "外置"
-    #define L_FANS              "风扇"
-    #define L_COOLING           "冷却"
-    #define L_PART_FAN          "模型风扇"
-    #define L_EMPTY             "(空)"
-    #define L_NAV_HINT          LV_SYMBOL_UP LV_SYMBOL_DOWN " 翻页   " LV_SYMBOL_REFRESH " 刷新"
-    #define L_MIN               "分"
-    #define L_HOUR              "时"
-    // 连接失败指引 (MQTT 启动超时时叠加在监控页上, 连接成功后自动撤除)
-    #define L_SETUP_TITLE       "无法连接网络"
-    #define L_SETUP_HINT        "无法连接 WiFi 或打印机。长按 OK 键进入配网模式：手机连接设备热点，在网页中填写 WiFi 与打印机信息即可，无需重新编译。"
-    // 配网模式 (SoftAP 热点 + 网页表单)
-    #define L_PROV_TITLE        "配网模式"
-    #define L_PROV_STEP1        "手机连接热点"
-    #define L_PROV_STEP2        "浏览器打开"
-    #define L_PROV_URL          "http://192.168.4.1"
-    #define L_PROV_STEP3        "填写 WiFi 与打印机信息，保存后设备自动重启"
+typedef enum {
+    UI_STR_CONNECTED,
+    UI_STR_CONNECTING,
+    UI_STR_DISCONNECTED,
+    UI_STR_NOZZLE,
+    UI_STR_BED,
+    UI_STR_CHAMBER,
+    UI_STR_LAYER,
+    UI_STR_REMAIN,
+    UI_STR_PROGRESS,
+    UI_STR_SPEED,
+    UI_STR_STATE,
+    UI_STR_STATE_IDLE,
+    UI_STR_STATE_RUNNING,
+    UI_STR_STATE_PAUSE,
+    UI_STR_STATE_FINISH,
+    UI_STR_STATE_FAILED,
+    UI_STR_STATE_PREPARE,
+    UI_STR_AMS,
+    UI_STR_EXT,
+    UI_STR_FANS,
+    UI_STR_COOLING,
+    UI_STR_PART_FAN,
+    UI_STR_EMPTY,
+    UI_STR_NAV_HINT,
+    UI_STR_MIN,
+    UI_STR_HOUR,
+    UI_STR_SETUP_TITLE,
+    UI_STR_SETUP_HINT,
+    UI_STR_PROV_TITLE,
+    UI_STR_PROV_STEP1,
+    UI_STR_PROV_STEP2,
+    UI_STR_PROV_STEP3,
+    UI_STR_COUNT
+} ui_str_id_t;
 
-    // 中文字体: 裁剪版 Noto Sans SC (只含汉字子集, ASCII 自动 fallback 到 Montserrat)
-    #define L_FONT_TEXT         &lv_font_cn_14
-    #define L_FONT_TEXT_BIG     &lv_font_cn_20
-#else
-    // English (default)
-    #define L_TITLE_BAMBU       "Bambu"
-    #define L_CONNECTED         "Connected"
-    #define L_CONNECTING        "Connecting..."
-    #define L_DISCONNECTED      "Disconnected"
-    #define L_NOZZLE            "Nozzle"
-    #define L_BED               "Bed"
-    #define L_CHAMBER           "Chamber"
-    #define L_LAYER             "Layer"
-    #define L_REMAIN            "Remain"
-    #define L_PROGRESS          "Progress"
-    #define L_SPEED             "Speed"
-    #define L_STATE             "State"
-    #define L_STATE_IDLE        "Idle"
-    #define L_STATE_RUNNING     "Running"
-    #define L_STATE_PAUSE       "Paused"
-    #define L_STATE_FINISH      "Finished"
-    #define L_STATE_FAILED      "Failed"
-    #define L_STATE_PREPARE     "Preparing"
-    #define L_AMS               "AMS"
-    #define L_EXT               "Ext"
-    #define L_FANS              "Fans"
-    #define L_COOLING           "Cooling"
-    #define L_PART_FAN          "Part Fan"
-    #define L_EMPTY             "(empty)"
-    #define L_NAV_HINT          LV_SYMBOL_UP LV_SYMBOL_DOWN " page   " LV_SYMBOL_REFRESH " refresh"
-    #define L_MIN               "min"
-    #define L_HOUR              "h"
-    // Connection-failure guidance (overlay when MQTT startup times out, auto-dismissed on connect)
-    #define L_SETUP_TITLE       "Network not connected"
-    #define L_SETUP_HINT        "Cannot reach WiFi or the printer. Long-press OK to enter setup mode: connect your phone to the device hotspot and fill in WiFi and printer info on the web page — no rebuild needed."
-    // Setup mode (SoftAP hotspot + web form)
-    #define L_PROV_TITLE        "Setup Mode"
-    #define L_PROV_STEP1        "Connect phone to hotspot"
-    #define L_PROV_STEP2        "Open in browser"
-    #define L_PROV_URL          "http://192.168.4.1"
-    #define L_PROV_STEP3        "Fill in WiFi and printer info. The device reboots after saving."
+// 运行时取值 (app_config_init 之后有效)
+const char *ui_lang_str(ui_str_id_t id);
+const lv_font_t *ui_lang_font_text(void);   // 14px 正文
+const lv_font_t *ui_lang_font_big(void);    // 20px 标题
 
-    #define L_FONT_TEXT         &lv_font_montserrat_14
-    #define L_FONT_TEXT_BIG     &lv_font_montserrat_20
-#endif
+// 两种语言一致的固定文案 (纯 ASCII, 无需进表)
+#define L_TITLE_BAMBU       "Bambu"
+#define L_PROV_URL          "http://192.168.4.1"
+
+// 本地化字符串宏 (展开为函数调用, 调用点与旧版写法一致)
+#define L_CONNECTED         ui_lang_str(UI_STR_CONNECTED)
+#define L_CONNECTING        ui_lang_str(UI_STR_CONNECTING)
+#define L_DISCONNECTED      ui_lang_str(UI_STR_DISCONNECTED)
+#define L_NOZZLE            ui_lang_str(UI_STR_NOZZLE)
+#define L_BED               ui_lang_str(UI_STR_BED)
+#define L_CHAMBER           ui_lang_str(UI_STR_CHAMBER)
+#define L_LAYER             ui_lang_str(UI_STR_LAYER)
+#define L_REMAIN            ui_lang_str(UI_STR_REMAIN)
+#define L_PROGRESS          ui_lang_str(UI_STR_PROGRESS)
+#define L_SPEED             ui_lang_str(UI_STR_SPEED)
+#define L_STATE             ui_lang_str(UI_STR_STATE)
+#define L_STATE_IDLE        ui_lang_str(UI_STR_STATE_IDLE)
+#define L_STATE_RUNNING     ui_lang_str(UI_STR_STATE_RUNNING)
+#define L_STATE_PAUSE       ui_lang_str(UI_STR_STATE_PAUSE)
+#define L_STATE_FINISH      ui_lang_str(UI_STR_STATE_FINISH)
+#define L_STATE_FAILED      ui_lang_str(UI_STR_STATE_FAILED)
+#define L_STATE_PREPARE     ui_lang_str(UI_STR_STATE_PREPARE)
+#define L_AMS               ui_lang_str(UI_STR_AMS)
+#define L_EXT               ui_lang_str(UI_STR_EXT)
+#define L_FANS              ui_lang_str(UI_STR_FANS)
+#define L_COOLING           ui_lang_str(UI_STR_COOLING)
+#define L_PART_FAN          ui_lang_str(UI_STR_PART_FAN)
+#define L_EMPTY             ui_lang_str(UI_STR_EMPTY)
+#define L_NAV_HINT          ui_lang_str(UI_STR_NAV_HINT)
+#define L_MIN               ui_lang_str(UI_STR_MIN)
+#define L_HOUR              ui_lang_str(UI_STR_HOUR)
+#define L_SETUP_TITLE       ui_lang_str(UI_STR_SETUP_TITLE)
+#define L_SETUP_HINT        ui_lang_str(UI_STR_SETUP_HINT)
+#define L_PROV_TITLE        ui_lang_str(UI_STR_PROV_TITLE)
+#define L_PROV_STEP1        ui_lang_str(UI_STR_PROV_STEP1)
+#define L_PROV_STEP2        ui_lang_str(UI_STR_PROV_STEP2)
+#define L_PROV_STEP3        ui_lang_str(UI_STR_PROV_STEP3)
+
+// 随语言切换的字体宏 (英文构建下即 Montserrat, 与旧行为一致)
+#define L_FONT_TEXT         ui_lang_font_text()
+#define L_FONT_TEXT_BIG     ui_lang_font_big()
 
 // 纯数字标签: 两种语言都用 Montserrat（大字号只有拉丁字体有）
 #define L_FONT_NUM          &lv_font_montserrat_14

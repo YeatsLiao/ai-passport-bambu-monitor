@@ -9,7 +9,7 @@
 //   main/ui/fonts/lv_font_cn_20.c   标题中文字体 (20px, 4bpp)
 //   main/ui/fonts/lv_font_cn.h      LV_FONT_DECLARE 声明
 //
-// 字符集来源: tools/cn_chars.txt (预留词库) + main/ui/ui_lang.h 的 LANG_CN 分支实际用字
+// 字符集来源: tools/cn_chars.txt (预留词库) + main/ui/ui_lang.c 中文分支实际用字
 // 源字体: Noto Sans SC (SIL Open Font License 1.1, 可自由裁剪与再分发)
 //
 // 依赖: lv_font_conv (通过 npx 缓存或本地 node_modules 提供), 首次运行需联网拉取一次
@@ -58,7 +58,7 @@ function findLvFontConvCli() {
   return null;   // 退回 npx (shell) 方式
 }
 
-// 收集字符集: 词库文件 + ui_lang.h 的 LANG_CN 分支
+// 收集字符集: 词库文件 + ui_lang.c 的中文分支 (运行时双语字符串表)
 function collectChars() {
   const set = new Set();
   const addText = (s) => { for (const ch of s) if (ch.codePointAt(0) > 0x7F) set.add(ch); };
@@ -66,12 +66,15 @@ function collectChars() {
   const charsFile = path.join(ROOT, 'tools', 'cn_chars.txt');
   if (fs.existsSync(charsFile)) addText(fs.readFileSync(charsFile, 'utf8'));
 
-  const langFile = path.join(ROOT, 'main', 'ui', 'ui_lang.h');
+  const langFile = path.join(ROOT, 'main', 'ui', 'ui_lang.c');
   if (fs.existsSync(langFile)) {
     const src = fs.readFileSync(langFile, 'utf8');
-    const m = src.match(/#if CFG_LANG == LANG_CN([\s\S]*?)#else/);
+    // 取 "中文 (裁剪版" 标记之后到数组结尾的分支
+    const m = src.match(/\/\/\s*中文[\s\S]*?\n\};/);
     if (m) {
-      for (const lit of m[1].matchAll(/"([^"]*)"/g)) addText(lit[1]);
+      for (const lit of m[0].matchAll(/"([^"]*)"/g)) addText(lit[1]);
+    } else {
+      throw new Error('ui_lang.c 中未找到中文分支 (标记: "// 中文")，请检查字符串表结构');
     }
   }
   for (const cp of EXTRA_CODEPOINTS) set.add(String.fromCodePoint(cp));
