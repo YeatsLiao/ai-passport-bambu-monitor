@@ -198,6 +198,9 @@ static esp_err_t save_post(httpd_req_t *req) {
     int lg = atoi(val);
     cfg.lang = (lg == PROV_LANG_EN || lg == PROV_LANG_CN)
                    ? (uint8_t)lg : old->lang;
+    // 组件排序: 隐藏域 order = "5,4,1,2,6,8"; 空串(默认开关选中)=count 0 → 各风格默认序
+    form_field(body, "order", val, sizeof(val));
+    app_config_set_comp_order_csv(&cfg, val);
 
     // 校验: 必填项 (密码/访问码可由旧值兜底, 已配置过才允许留空)
     const char *err = NULL;
@@ -236,8 +239,8 @@ bad_request:
 }
 
 // 配页静态存储: httpd 单线程顺序处理, 用 static 避免大数组占用栈内存
-// (含风格/语言下拉框选项后页面 ~6KB, 预留到 8KB)
-static char s_page[8192];
+// (含风格/语言下拉框 + 组件排序列表后页面 ~9KB, 预留到 12KB)
+static char s_page[12288];
 
 // ---------------------------------------------------------------------------
 // WiFi 扫描接口 (GET /api/scan)
@@ -323,6 +326,44 @@ static esp_err_t root_get(httpd_req_t *req) {
              PROV_LANG_EN, cfg->lang == PROV_LANG_EN ? " selected" : "",
              PROV_LANG_CN, cfg->lang == PROV_LANG_CN ? " selected" : "");
 
+    // 组件排序列表: 依当前配置预排 DOM 顺序与勾选状态。
+    // comp_count>0 展示用户已选(有序勾选)+未选(附尾未勾); =0 走默认(常见 6 项勾选)。
+    static const char *const comp_names[APP_COMP_MAX + 1] = {
+        "", "喷嘴温度", "热床温度", "腔体温度", "层数", "进度 %",
+        "剩余时间", "打印状态", "打印速度", "AMS"
+    };
+    bool shown[APP_COMP_MAX + 1] = { false };
+    int seq[APP_COMP_MAX]; int seqn = 0;
+    bool use_default = (cfg->comp_count == 0);
+    if (!use_default) {
+        for (int i = 0; i < cfg->comp_count && i < APP_COMP_MAX; i++) {
+            int id = cfg->comp_order[i];
+            if (id >= 1 && id <= APP_COMP_MAX && !shown[id]) { seq[seqn++] = id; shown[id] = true; }
+        }
+        for (int id = 1; id <= APP_COMP_MAX; id++) if (!shown[id]) seq[seqn++] = id;
+    } else {
+        static const int dflt[6] = {5, 4, 1, 2, 6, 8};
+        for (int i = 0; i < 6; i++) { seq[seqn++] = dflt[i]; shown[dflt[i]] = true; }
+        for (int id = 1; id <= APP_COMP_MAX; id++) if (!shown[id]) seq[seqn++] = id;
+    }
+    // 每行 HTML ~310 字节, 9 行需 ~2800 字节, 预留 3200 防截断
+    static char order_rows[3200];
+    int ooff = 0;
+    for (int i = 0; i < seqn; i++) {
+        int id = seq[i];
+        if (ooff >= (int)sizeof(order_rows) - 1) break;
+        int w = snprintf(order_rows + ooff, sizeof(order_rows) - ooff,
+            "<div class=\"orow\" data-cmp=\"%d\"><label class=\"olab\">"
+            "<input type=\"checkbox\" class=\"ochk\"%s><span class=\"oidx\">%d</span>"
+            "<span class=\"oname\">%s</span></label>"
+            "<span class=\"omv\"><button type=\"button\" onclick=\"mvUp(this)\">\u2191</button>"
+            "<button type=\"button\" onclick=\"mvDn(this)\">\u2193</button></span></div>",
+            id, shown[id] ? " checked" : "", id, comp_names[id]);
+        if (w < 0) break;
+        ooff += w;
+        if (ooff >= (int)sizeof(order_rows)) { ooff = (int)sizeof(order_rows) - 1; break; }
+    }
+
     snprintf(s_page, sizeof(s_page),
 "<!DOCTYPE html><html lang=\"zh\"><head><meta charset=\"utf-8\">"
 "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">"
@@ -341,6 +382,17 @@ static esp_err_t root_get(httpd_req_t *req) {
 "input{width:100%%;padding:12px;border:1.5px solid #e2e5e9;border-radius:12px;font-size:16px;background:#f7f8fa;color:#111;transition:border-color .2s,box-shadow .2s;-webkit-appearance:none}"
 "input:focus{outline:none;border-color:#00ae42;background:#fff;box-shadow:0 0 0 3px rgba(0,174,66,.13)}"
 "select{width:100%%;padding:12px;border:1.5px solid #e2e5e9;border-radius:12px;font-size:16px;background:#f7f8fa;color:#111;-webkit-appearance:none}"
+".olist{border:1.5px solid #e2e5e9;border-radius:12px;overflow:hidden;margin-top:4px;transition:opacity .2s}"
+".olist.off{opacity:.4;pointer-events:none}"
+".orow{display:flex;align-items:center;justify-content:space-between;padding:9px 10px;border-bottom:1px solid #eef1f4;background:#fff}"
+".orow:last-child{border-bottom:0}"
+".olab{display:flex;align-items:center;gap:10px;margin:0;font-size:15px;color:#111;font-weight:500;cursor:pointer}"
+".oidx{display:inline-flex;width:22px;height:22px;border-radius:6px;background:#eef1f4;color:#5a6470;font-size:12px;align-items:center;justify-content:center;font-weight:700}"
+".ochk{width:18px;height:18px;flex-shrink:0;margin:0}"
+".omv button{width:34px;height:30px;margin:0;padding:0;border:1px solid #d0d8e0;border-radius:8px;background:#f0f4f8;color:#1a3a52;font-size:15px;line-height:1;box-shadow:none;cursor:pointer}"
+".omv button+button{margin-left:6px}"
+".odflt{display:flex;align-items:center;gap:8px;font-size:13px;color:#5a6470;font-weight:600}"
+".odflt input{width:16px;height:16px;margin:0}"
 "button{width:100%%;margin-top:28px;padding:14px;border:0;border-radius:14px;"
 "background:linear-gradient(135deg,#00c853,#009624);color:#fff;font-size:16px;font-weight:700;"
 "box-shadow:0 8px 20px rgba(0,174,66,.32);cursor:pointer}"
@@ -350,7 +402,7 @@ static esp_err_t root_get(httpd_req_t *req) {
 "<div class=\"card\">"
 "<div class=\"head\"><div class=\"logo\">🖨</div><div><h1>拓竹打印机监控器</h1>"
 "<p class=\"tip\">填写后点保存，设备自动重启并连接</p></div></div>"
-"<form method=\"POST\" action=\"/save\">"
+"<form method=\"POST\" action=\"/save\" onsubmit=\"buildOrder()\">"
 "<div class=\"sec\">WIFI \u00b7 \u4ec5\u652f持 2.4GHz</div>"
 "<label>WiFi \u540d\u79f0 <em>*</em></label>"
 "<div style=\"display:flex;gap:8px\">"
@@ -372,6 +424,10 @@ static esp_err_t root_get(httpd_req_t *req) {
 "<select name=\"style\">%s</select>"
 "<label>\u754c\u9762\u8bed\u8a00 / Language</label>"
 "<select name=\"lang\">%s</select>"
+"<label style=\"margin-top:16px\">组件排序（勾选显示 · 上移/下移调序）</label>"
+"<label class=\"odflt\" style=\"margin:6px 0\"><input type=\"checkbox\" id=\"usedefault\" onchange=\"toggleDefault()\"%s> 使用各风格推荐默认顺序</label>"
+"<div id=\"orderlist\" class=\"olist%s\">%s</div>"
+"<input type=\"hidden\" name=\"order\" id=\"orderfield\" value=\"\">"
 "<button type=\"submit\">保存并重启设备</button>"
 "</form></div>"
 "<div class=\"foot\">\u914d\u7f6e\u4ec5\u4fdd\u5b58\u5728\u8bbe\u5907\u672c\u5730，\u4e0d\u4f1a\u4e0a\u4f20\u4efb\u4f55\u670d\u52a1\u5668<br>\u6b64\u70ed\u70b9\u65e0\u4e92\u8054\u7f51\u5c5e\u6b63\u5e38\u73b0\u8c61，\u76f4\u63a5\u586b\u5199\u8868\u5355\u5373\u53ef</div>"
@@ -389,6 +445,10 @@ static esp_err_t root_get(httpd_req_t *req) {
 "}catch(e){alert('\u626b\u63cf\u5931\u8d25，\u8bf7\u624b\u52a8\u8f93\u5165 WiFi \u540d\u79f0');}"
 "b.textContent='\xf0\x9f\x94\x8d \u626b\u63cf';b.disabled=false;}"
 "function pickNet(){var v=document.getElementById('netsel').value;if(v)document.getElementById('ssid').value=v;}"
+"function mvUp(b){var r=b.closest('.orow');var p=r.previousElementSibling;if(p)r.parentNode.insertBefore(r,p);}"
+"function mvDn(b){var r=b.closest('.orow');var n=r.nextElementSibling;if(n)r.parentNode.insertBefore(n,r);}"
+"function toggleDefault(){var d=document.getElementById('usedefault');document.getElementById('orderlist').classList.toggle('off',d.checked);}"
+"function buildOrder(){var f=document.getElementById('orderfield');if(document.getElementById('usedefault').checked){f.value='';return;}var ps=[];var rs=document.querySelectorAll('#orderlist .orow');for(var i=0;i<rs.length;i++){var ck=rs[i].querySelector('.ochk');if(ck&&ck.checked)ps.push(rs[i].getAttribute('data-cmp'));}f.value=ps.join(',');}"
 "</script>"
 "</body></html>",
         esc_ssid,
@@ -398,7 +458,8 @@ static esp_err_t root_get(httpd_req_t *req) {
         have_code ? "（已配置，不改留空）" : " <em>*</em>",
         have_code ? "" : "required ",
         have_code ? "不改请留空" : "必填",
-        style_opts, lang_opts);
+        style_opts, lang_opts,
+        use_default ? " checked" : "", use_default ? " off" : "", order_rows);
 
     httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, s_page, HTTPD_RESP_USE_STRLEN);
