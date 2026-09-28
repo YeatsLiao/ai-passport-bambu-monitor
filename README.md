@@ -21,7 +21,7 @@
 
 屏幕实时显示：时间、电池电量、打印状态（打印中/已暂停/已完成/失败）、进度、喷嘴/热床/腔体温度、层数、剩余时间、速度、AMS 料仓类型与余量。
 
-- **12 种 UI 风格**：拓竹原厂 / 赛博 / 希卡石板 / 纯白 / 工控 / 霓虹 / 像素机器人 / 固态硬盘标签 / F1 转播计时 / 图形仪表盘 / Geist 控制台 / Apple，编译前一行宏切换
+- **12 种 UI 风格**：拓竹原厂 / 赛博 / 希卡石板 / 纯白 / 工控 / 霓虹 / 像素机器人 / 固态硬盘标签 / F1 转播计时 / 图形仪表盘 / Geist 控制台 / Apple，在配网页下拉即可切换、无需重新编译；另支持中 / 英双语界面
 - **手机配网**：无需编译环境，开机进配网模式，手机连热点填表单即可
 - **数据驱动配色**：耗材颜色、电量、状态色均来自打印机实时数据，不是写死的
 - **局域网直连**：无需云端，数据不出局域网
@@ -29,7 +29,7 @@
 
 ## UI 风格
 
-编译前在 `main/config.h` 中修改 `CFG_UI_STYLE` 选择，共 12 套：
+共 12 套，在配网页的「界面风格」下拉框中直接选择（保存后重启生效），无需重新编译；也可在 `main/config.h` 里用 `CFG_UI_STYLE` 预置出厂默认值：
 
 | 宏定义 | 特点 |
 |--------|------|
@@ -47,6 +47,10 @@
 | `STYLE_APPLE` | Apple 风（iOS 浅灰分组底 + 白色圆角卡片 + systemBlue，参考 iOS HIG） |
 
 全部风格均为 2 页分页：第 1 页打印状态（进度/温度/层高/剩余时间），第 2 页 AMS 料仓。视觉规格详见 [UI 设计说明](docs/UI-DESIGN.md)。
+
+## 界面语言
+
+支持**中文 / English** 双语界面，同样在配网页的「界面语言」下拉框中选择（保存后重启生效），无需重新编译；`main/config.h` 中的 `CFG_LANG`（`LANG_EN` / `LANG_CN`）仅作为 NVS 无记录时的出厂默认值。中文界面使用按需裁剪的点阵字体，只打包界面实际用到的汉字以节省 Flash。
 
 ## 使用方法
 
@@ -69,7 +73,7 @@
 
 1. 设备屏幕显示热点名（形如 `Passport-XXXX`）；用手机 WiFi 连接该热点（无密码，连上后多数手机会自动弹出配置页）
 2. 若未自动弹出，手动在浏览器打开 `http://192.168.4.1`
-3. 在网页中填写 WiFi（2.4GHz）、打印机 IP、序列号、访问码，点「保存并重启设备」
+3. 在网页中填写 WiFi（2.4GHz）、打印机 IP、序列号、访问码，并从下拉框选择「界面风格」与「界面语言（中 / English）」，点「保存并重启设备」
 4. 设备自动重启并连接 WiFi 与打印机，屏幕显示实时数据即成功
 
 > 配置保存在设备本地存储（NVS），不上传任何服务器。想换 WiFi 或换打印机：长按确认键重新进入配网模式即可。
@@ -95,8 +99,11 @@ cp main/config.example.h main/config.h
 #define CFG_PRINTER_SERIAL  "YOUR_SERIAL"      // 序列号（15 位）
 #define CFG_ACCESS_CODE     "YOUR_CODE"        // 访问码（8 位）
 
-// UI 风格（STYLE_BAMBU / CYBER / SHEIKAH / WHITE / INDUSTRIAL / NEON / PIXEL / SSD / F1 / GAUGE / GEIST / APPLE）
+// 出厂默认 UI 风格与语言：仅作为 NVS 无记录时的默认值，
+// 烧录后可在配网页随时修改（风格 1-12 / 语言 EN-CN），无需重新编译
+// 风格可选 STYLE_BAMBU / CYBER / SHEIKAH / WHITE / INDUSTRIAL / NEON / PIXEL / SSD / F1 / GAUGE / GEIST / APPLE
 #define CFG_UI_STYLE  STYLE_SSD
+#define CFG_LANG      LANG_CN      // LANG_EN / LANG_CN
 ```
 
 > **注意**：`config.h` 包含你的 WiFi 密码和打印机访问码，已在 `.gitignore` 中排除，请勿手动提交到仓库。
@@ -209,7 +216,7 @@ A Bambu Lab printer monitor built on [FoloToy AI Passport](https://github.com/Fo
 
 The screen shows time, battery, print state (running/paused/finished/failed), progress, nozzle/bed/chamber temperatures, layer, remaining time, speed and AMS slots.
 
-- **12 UI styles**: switch with a single macro before compiling
+- **12 UI styles**: pick from the provisioning web page at runtime (no recompile); Chinese / English interface supported
 - **Phone provisioning**: no build environment needed — boot into setup mode, join the hotspot and fill in the form
 - **Data-driven colors**: filament colors, battery and state colors all come from live printer data
 - **LAN only**: no cloud involved, data never leaves your network
@@ -234,7 +241,7 @@ After flashing the firmware (prebuilt or self-built), the device enters **setup 
 
 1. The screen shows the hotspot name (e.g. `Passport-XXXX`); connect your phone's WiFi to it (open network — most phones pop up the config page automatically)
 2. If nothing pops up, open `http://192.168.4.1` in a browser
-3. Fill in your WiFi (2.4GHz), printer IP, serial number and access code, then tap save — the device reboots
+3. Fill in your WiFi (2.4GHz), printer IP, serial number and access code, choose the UI style and language (中 / English) from the dropdowns, then tap save — the device reboots
 4. The device reconnects automatically; live data on screen means success
 
 > Configuration is stored locally on the device (NVS), never uploaded. To change WiFi or printer later: long-press OK to re-enter setup mode.
@@ -259,8 +266,10 @@ Edit `main/config.h`:
 #define CFG_PRINTER_SERIAL  "YOUR_SERIAL"      // 15 chars
 #define CFG_ACCESS_CODE     "YOUR_CODE"        // 8 digits
 
-// UI style
+// Default UI style + language (1-12 / LANG_EN|LANG_CN).
+// Only used when NVS has no record yet — change anytime from the provisioning page, no recompile.
 #define CFG_UI_STYLE  STYLE_SSD
+#define CFG_LANG      LANG_EN      // LANG_EN / LANG_CN
 ```
 
 > `config.h` contains your WiFi password and printer access code; it is excluded by `.gitignore` — never commit it.
