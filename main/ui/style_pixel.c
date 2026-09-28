@@ -12,6 +12,7 @@
 #include "../bambu_state.h"
 #include "../bambu_mqtt.h"
 #include "../config.h"
+#include "../app_config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -49,16 +50,19 @@ static const char *TAG __attribute__((unused)) = "style_pixel";
 #define PX_SCREEN     0xB9F3FF       // 机器人屏幕脸
 #define PX_EYE        0x294B7A       // 机器人眼睛
 
-// 组件顺序: config.h 定义 CFG_COMPONENT_ORDER (如 {5,4,1,2,6,8}) 则覆盖默认值。
-// 注意两个分支都要定义 s_order: 上面写法若漏掉 #else 分支, 一旦用户定义了
-// CFG_COMPONENT_ORDER 就会报 s_order undeclared (实测踩过)。
-#ifdef CFG_COMPONENT_ORDER
-static const int s_order[] = CFG_COMPONENT_ORDER;
-#else
+// 组件顺序: 运行时可配（配网页「组件排序」，NVS 持久化）。
+// 未自定义 (app_config 顺序为空) 时回落到本风格默认序 s_default_order。
 static const int s_default_order[] = {5, 4, 1, 2, 6, 8};
-#define s_order s_default_order
-#endif
-#define s_order_len (sizeof(s_order) / sizeof(s_order[0]))
+static int s_order[APP_COMP_MAX];
+static int s_order_len;
+static void resolve_order(void) {
+    int n = app_config_comp_order(s_order, APP_COMP_MAX);
+    if (n <= 0) {
+        n = (int)(sizeof(s_default_order) / sizeof(s_default_order[0]));
+        for (int i = 0; i < n; i++) s_order[i] = s_default_order[i];
+    }
+    s_order_len = n;
+}
 
 // ── UI 对象 ──
 static int s_page = 0;
@@ -454,6 +458,7 @@ static void build_page1(void) {
 // 构建整个屏幕 (首次创建所有持久对象)
 // ---------------------------------------------------------------------------
 void style_pixel_build(void) {
+    resolve_order();
     if (!s_scr) return;
     const ui_theme_colors_t *c = ui_theme_get_colors();
 

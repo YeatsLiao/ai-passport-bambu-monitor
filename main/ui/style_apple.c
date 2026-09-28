@@ -14,6 +14,7 @@
 #include "../bambu_state.h"
 #include "../bambu_mqtt.h"
 #include "../config.h"
+#include "../app_config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -37,14 +38,19 @@ static const char *TAG __attribute__((unused)) = "style_apple";
 // 组件图标统一由 ui_theme 映射, 保证各风格语义一致
 #define ICO(cmp) ui_theme_component_icon(cmp)
 
-#ifndef CFG_COMPONENT_ORDER
+// 组件顺序: 运行时可配（配网页「组件排序」，NVS 持久化）。
+// 未自定义 (app_config 顺序为空) 时回落到本风格默认序 s_default_order。
 static const int s_default_order[] = {5, 4, 1, 2, 7, 8};
-#define s_order s_default_order
-#define s_order_len 6
-#else
-static const int s_order[] = CFG_COMPONENT_ORDER;
-#define s_order_len (sizeof(s_order) / sizeof(s_order[0]))
-#endif
+static int s_order[APP_COMP_MAX];
+static int s_order_len;
+static void resolve_order(void) {
+    int n = app_config_comp_order(s_order, APP_COMP_MAX);
+    if (n <= 0) {
+        n = (int)(sizeof(s_default_order) / sizeof(s_default_order[0]));
+        for (int i = 0; i < n; i++) s_order[i] = s_default_order[i];
+    }
+    s_order_len = n;
+}
 
 // ── 布局常量 (240x320, iOS inset grouped 尺度) ──
 #define CARD_X       12
@@ -224,7 +230,7 @@ static void build_page0(void) {
     memset(s_row_val, 0, sizeof(s_row_val));
 
     int row = 0;
-    for (int i = 0; i < s_order_len && row < 6; i++) {
+    for (int i = 0; i < s_order_len && row < 5; i++) {
         int cmp = s_order[i];
         if (cmp == CMP_PERCENT) continue;
 
@@ -356,6 +362,7 @@ static void build_page1(void) {
 // 构建整个屏幕 (首次创建所有持久对象, 翻页时跳过)
 // ---------------------------------------------------------------------------
 void style_apple_build(void) {
+    resolve_order();
     if (!s_scr) return;
     const ui_theme_colors_t *c = ui_theme_get_colors();
 
@@ -472,7 +479,7 @@ void style_apple_update(void) {
 
         // 数据行 (行序与 build_page0 一致: order 中跳过 PERCENT)
         int row = 0;
-        for (int i = 0; i < s_order_len && row < 6; i++) {
+        for (int i = 0; i < s_order_len && row < 5; i++) {
             int cmp = s_order[i];
             if (cmp == CMP_PERCENT) continue;
             if (!s_row_val[row]) { row++; continue; }

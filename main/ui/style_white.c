@@ -9,6 +9,7 @@
 #include "../bambu_state.h"
 #include "../bambu_mqtt.h"
 #include "../config.h"
+#include "../app_config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -35,15 +36,19 @@ static const char *TAG __attribute__((unused)) = "style_white";
 // 组件图标统一由 ui_theme 映射, 保证各风格语义一致
 #define ICO(cmp) ui_theme_component_icon(cmp)
 
-// 组件顺序: config.h 定义 CFG_COMPONENT_ORDER (如 {5,4,1,2,6,8}) 则覆盖默认值。
-// 两个分支都要能解析出 s_order, 否则用户一旦定义该宏就报 undeclared (实测踩过)。
-#ifdef CFG_COMPONENT_ORDER
-static const int s_order[] = CFG_COMPONENT_ORDER;
-#else
+// 组件顺序: 运行时可配（配网页「组件排序」，NVS 持久化）。
+// 未自定义 (app_config 顺序为空) 时回落到本风格默认序 s_default_order。
 static const int s_default_order[] = {5, 4, 1, 2, 6, 8};
-#define s_order s_default_order
-#endif
-#define s_order_len (sizeof(s_order) / sizeof(s_order[0]))
+static int s_order[APP_COMP_MAX];
+static int s_order_len;
+static void resolve_order(void) {
+    int n = app_config_comp_order(s_order, APP_COMP_MAX);
+    if (n <= 0) {
+        n = (int)(sizeof(s_default_order) / sizeof(s_default_order[0]));
+        for (int i = 0; i < n; i++) s_order[i] = s_default_order[i];
+    }
+    s_order_len = n;
+}
 
 // ── UI 对象 ──
 static int s_page = 0;
@@ -324,6 +329,7 @@ static void build_page1(void) {
 // 构建整个屏幕 (首次创建所有持久对象)
 // ---------------------------------------------------------------------------
 void style_white_build(void) {
+    resolve_order();
     if (!s_scr) return;
     const ui_theme_colors_t *c = ui_theme_get_colors();
 
