@@ -158,7 +158,8 @@ static void build_page0(void) {
     mk_hud_corners(card, 0, 0, 208, 100);
 
     // 状态行 (框内顶部居中, 图标随状态变化)
-    s_state_lbl = mk_lbl(card, LV_SYMBOL_WIFI " " L_CONNECTING, L_FONT_TEXT, c->text_secondary);
+    s_state_lbl = mk_lbl(card, "", L_FONT_TEXT, c->text_secondary);
+    if (s_state_lbl) lv_label_set_text_fmt(s_state_lbl, "%s %s", LV_SYMBOL_WIFI, L_CONNECTING);
     if (s_state_lbl) lv_obj_align(s_state_lbl, LV_ALIGN_TOP_MID, 0, 8);
 
     // 发光大字百分比 (带霓虹光晕)
@@ -180,14 +181,16 @@ static void build_page0(void) {
     // ── 霓虹竖条数据行: NOZ / BED / CHM / SPEED / REMAIN ──
     memset(s_row_bar, 0, sizeof(s_row_bar));
     memset(s_row_lbl, 0, sizeof(s_row_lbl));
-    const char *inits[5] = {
-        L_NOZZLE " --/--°C", L_BED " --/--°C", L_CHAMBER " --°C",
-        L_SPEED " -- --%", L_REMAIN " --"
+    // 初文本模板 (L_* 是运行时函数, 不能进静态初始化列表, 改为逐个格式化)
+    static const char *const row_fmts[5] = {
+        "%s %s --/--°C", "%s %s --/--°C", "%s %s --°C",
+        "%s %s -- --%%", "%s %s --"
     };
+    const char *row_names[5] = { L_NOZZLE, L_BED, L_CHAMBER, L_SPEED, L_REMAIN };
     for (int i = 0; i < 5; i++) {
         s_row_bar[i] = mk_neon_bar(card, 2, 122 + i * 24);   // 卡片加高后行距拉开
         char init[48];
-        snprintf(init, sizeof(init), "%s %s", ICO(s_row_cmp[i]), inits[i]);
+        snprintf(init, sizeof(init), row_fmts[i], ICO(s_row_cmp[i]), row_names[i]);
         s_row_lbl[i] = mk_lbl(card, init, L_FONT_TEXT,
                               (i < 3) ? c->text_primary : c->text_secondary);
         if (s_row_lbl[i]) lv_obj_set_pos(s_row_lbl[i], 14, 118 + i * 24);
@@ -211,7 +214,8 @@ static void build_page1(void) {
     lv_obj_set_style_pad_all(card, 8, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    mk_lbl(card, LV_SYMBOL_SD_CARD " " L_AMS, L_FONT_TEXT_BIG, c->accent);
+    lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->accent);
+    if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s", LV_SYMBOL_SD_CARD, L_AMS);
 
     memset(s_ams_chip, 0, sizeof(s_ams_chip));
     memset(s_ams_lbl, 0, sizeof(s_ams_lbl));
@@ -355,7 +359,7 @@ void style_cyber_update(void) {
             uint32_t sc = conn ? state_color(st->state, c) : c->error;
             if (conn) snprintf(buf, sizeof(buf), "%s %s",
                                ui_theme_state_icon(st->state, true), state_text(st->state));
-            else      snprintf(buf, sizeof(buf), "%s " L_CONNECTING, LV_SYMBOL_WIFI);
+            else      snprintf(buf, sizeof(buf), "%s %s", LV_SYMBOL_WIFI, L_CONNECTING);
             lv_label_set_text(s_state_lbl, buf);
             lv_obj_set_style_text_color(s_state_lbl, lv_color_hex(sc), 0);
         }
@@ -375,22 +379,22 @@ void style_cyber_update(void) {
         }
         // 霓虹竖条数据行
         if (s_row_lbl[0]) {
-            snprintf(buf, sizeof(buf), "%s " L_NOZZLE " %d/%d°C", ICO(CMP_NOZZLE),
+            snprintf(buf, sizeof(buf), "%s %s %d/%d°C", ICO(CMP_NOZZLE), L_NOZZLE,
                      (int)st->nozzle_temp, (int)st->nozzle_target);
             lv_label_set_text(s_row_lbl[0], buf);
         }
         if (s_row_lbl[1]) {
-            snprintf(buf, sizeof(buf), "%s " L_BED " %d/%d°C", ICO(CMP_BED),
+            snprintf(buf, sizeof(buf), "%s %s %d/%d°C", ICO(CMP_BED), L_BED,
                      (int)st->bed_temp, (int)st->bed_target);
             lv_label_set_text(s_row_lbl[1], buf);
         }
         if (s_row_lbl[2]) {
-            snprintf(buf, sizeof(buf), "%s " L_CHAMBER " %d°C", ICO(CMP_CHAMBER),
+            snprintf(buf, sizeof(buf), "%s %s %d°C", ICO(CMP_CHAMBER), L_CHAMBER,
                      (int)st->chamber_temp);
             lv_label_set_text(s_row_lbl[2], buf);
         }
         if (s_row_lbl[3]) {
-            snprintf(buf, sizeof(buf), "%s " L_SPEED " %d %d%%", ICO(CMP_SPEED),
+            snprintf(buf, sizeof(buf), "%s %s %d %d%%", ICO(CMP_SPEED), L_SPEED,
                      st->spd_lvl, st->spd_mag);
             lv_label_set_text(s_row_lbl[3], buf);
         }
@@ -398,12 +402,12 @@ void style_cyber_update(void) {
             if (st->mc_remaining > 0) {
                 int h = st->mc_remaining / 60;
                 int m = st->mc_remaining % 60;
-                if (h > 0) snprintf(buf, sizeof(buf), "%s " L_REMAIN " %d" L_HOUR "%02d" L_MIN,
-                                    ICO(CMP_REMAIN), h, m);
-                else       snprintf(buf, sizeof(buf), "%s " L_REMAIN " %d" L_MIN,
-                                    ICO(CMP_REMAIN), m);
+                if (h > 0) snprintf(buf, sizeof(buf), "%s %s %d%s%02d%s",
+                                    ICO(CMP_REMAIN), L_REMAIN, h, L_HOUR, m, L_MIN);
+                else       snprintf(buf, sizeof(buf), "%s %s %d%s",
+                                    ICO(CMP_REMAIN), L_REMAIN, m, L_MIN);
             } else {
-                snprintf(buf, sizeof(buf), "%s " L_REMAIN " --", ICO(CMP_REMAIN));
+                snprintf(buf, sizeof(buf), "%s %s --", ICO(CMP_REMAIN), L_REMAIN);
             }
             lv_label_set_text(s_row_lbl[4], buf);
         }

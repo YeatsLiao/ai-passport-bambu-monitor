@@ -186,19 +186,19 @@ static void build_page0(void) {
         char buf[48];
         switch (cmp) {
             case CMP_LAYER:
-                snprintf(buf, sizeof(buf), "%s " L_LAYER, ICO(CMP_LAYER)); break;
+                snprintf(buf, sizeof(buf), "%s %s", ICO(CMP_LAYER), L_LAYER); break;
             case CMP_NOZZLE:
-                snprintf(buf, sizeof(buf), "%s " L_NOZZLE, ICO(CMP_NOZZLE)); break;
+                snprintf(buf, sizeof(buf), "%s %s", ICO(CMP_NOZZLE), L_NOZZLE); break;
             case CMP_BED:
-                snprintf(buf, sizeof(buf), "%s " L_BED, ICO(CMP_BED)); break;
+                snprintf(buf, sizeof(buf), "%s %s", ICO(CMP_BED), L_BED); break;
             case CMP_CHAMBER:
-                snprintf(buf, sizeof(buf), "%s " L_CHAMBER, ICO(CMP_CHAMBER)); break;
+                snprintf(buf, sizeof(buf), "%s %s", ICO(CMP_CHAMBER), L_CHAMBER); break;
             case CMP_REMAIN:
-                snprintf(buf, sizeof(buf), "%s " L_REMAIN, ICO(CMP_REMAIN)); break;
+                snprintf(buf, sizeof(buf), "%s %s", ICO(CMP_REMAIN), L_REMAIN); break;
             case CMP_STATE:
-                snprintf(buf, sizeof(buf), "%s " L_STATE, LV_SYMBOL_WIFI); break;
+                snprintf(buf, sizeof(buf), "%s %s", LV_SYMBOL_WIFI, L_STATE); break;
             case CMP_SPEED:
-                snprintf(buf, sizeof(buf), "%s " L_SPEED, ICO(CMP_SPEED)); break;
+                snprintf(buf, sizeof(buf), "%s %s", ICO(CMP_SPEED), L_SPEED); break;
             default: continue;
         }
 
@@ -429,8 +429,8 @@ void style_geist_update(void) {
                 case CMP_REMAIN:
                     if (st->mc_remaining > 0) {
                         int h = st->mc_remaining / 60, m = st->mc_remaining % 60;
-                        if (h > 0) snprintf(buf, sizeof(buf), "%d" L_HOUR "%02d" L_MIN, h, m);
-                        else       snprintf(buf, sizeof(buf), "%d" L_MIN, m);
+                        if (h > 0) snprintf(buf, sizeof(buf), "%d%s%02d%s", h, L_HOUR, m, L_MIN);
+                        else       snprintf(buf, sizeof(buf), "%d%s", m, L_MIN);
                     } else snprintf(buf, sizeof(buf), "--");
                     lv_label_set_text(val, buf); break;
                 case CMP_STATE: {
@@ -453,8 +453,8 @@ void style_geist_update(void) {
                         lv_obj_set_style_text_color(s_row_lbl[row], lv_color_hex(sc), 0);
                     // 状态行左标签图标随状态变化
                     if (s_row_lbl[row]) {
-                        snprintf(buf, sizeof(buf), "%s " L_STATE,
-                                 conn ? ui_theme_state_icon(st->state, true) : LV_SYMBOL_WIFI);
+                        snprintf(buf, sizeof(buf), "%s %s",
+                                 conn ? ui_theme_state_icon(st->state, true) : LV_SYMBOL_WIFI, L_STATE);
                         lv_label_set_text(s_row_lbl[row], buf);
                     }
                     break;

@@ -211,7 +211,8 @@ static void build_page0(void) {
     const int W = 192, col_r = 96;
 
     // ── 顶部状态行 (小字, 次要色) ──
-    s_state_lbl = mk_lbl(card, LV_SYMBOL_WIFI " " L_CONNECTING, L_FONT_TEXT, c->text_secondary);
+    s_state_lbl = mk_lbl(card, "", L_FONT_TEXT, c->text_secondary);
+    if (s_state_lbl) lv_label_set_text_fmt(s_state_lbl, "%s %s", LV_SYMBOL_WIFI, L_CONNECTING);
     if (s_state_lbl) lv_obj_set_pos(s_state_lbl, 0, 0);
 
     // ── 超大百分比 (左对齐, 素雅风唯一的视觉重心) ──
@@ -281,7 +282,8 @@ static void build_page1(void) {
 
     const int W = 192;
 
-    mk_lbl(card, LV_SYMBOL_SD_CARD " " L_AMS, L_FONT_TEXT_BIG, c->text_primary);
+    lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->text_primary);
+    if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s", LV_SYMBOL_SD_CARD, L_AMS);
     mk_rule(card, 30, W);
 
     memset(s_ams_chip, 0, sizeof(s_ams_chip));
@@ -435,7 +437,7 @@ void style_white_update(void) {
             uint32_t sc = conn ? state_color(st->state, c) : c->error;
             if (conn) snprintf(buf, sizeof(buf), "%s %s",
                                ui_theme_state_icon(st->state, true), state_text(st->state));
-            else      snprintf(buf, sizeof(buf), "%s " L_CONNECTING, LV_SYMBOL_WIFI);
+            else      snprintf(buf, sizeof(buf), "%s %s", LV_SYMBOL_WIFI, L_CONNECTING);
             lv_label_set_text(s_state_lbl, buf);
             lv_obj_set_style_text_color(s_state_lbl, lv_color_hex(sc), 0);
         }

@@ -238,7 +238,8 @@ static void build_page1(void) {
     lv_obj_set_style_pad_all(card, 8, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    mk_lbl(card, LV_SYMBOL_SD_CARD " " L_AMS, L_FONT_TEXT_BIG, c->accent);
+    lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->accent);
+    if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s", LV_SYMBOL_SD_CARD, L_AMS);
 
     memset(s_ams_chip, 0, sizeof(s_ams_chip));
     memset(s_ams_lbl, 0, sizeof(s_ams_lbl));
@@ -420,9 +421,9 @@ void style_industrial_update(void) {
             if (st->mc_remaining > 0) {
                 int h = st->mc_remaining / 60;
                 int m = st->mc_remaining % 60;
-                if (h > 0) snprintf(buf, sizeof(buf), "%s %d" L_HOUR "%02d" L_MIN,
-                                    ICO(CMP_REMAIN), h, m);
-                else       snprintf(buf, sizeof(buf), "%s %d" L_MIN, ICO(CMP_REMAIN), m);
+                if (h > 0) snprintf(buf, sizeof(buf), "%s %d%s%02d%s",
+                                    ICO(CMP_REMAIN), h, L_HOUR, m, L_MIN);
+                else       snprintf(buf, sizeof(buf), "%s %d%s", ICO(CMP_REMAIN), m, L_MIN);
             } else {
                 snprintf(buf, sizeof(buf), "%s --", ICO(CMP_REMAIN));
             }

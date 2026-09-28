@@ -290,7 +290,8 @@ static void build_page1(void) {
     lv_obj_set_style_pad_all(card, 8, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    mk_lbl(card, LV_SYMBOL_SD_CARD " " L_AMS, L_FONT_TEXT_BIG, c->accent);
+    lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->accent);
+    if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s", LV_SYMBOL_SD_CARD, L_AMS);
 
     // 格子初始背景 = 主题边框色, 文字取其对比色 (有料时 update 会按耗材颜色重算)
     const uint32_t slot_txt = ui_theme_on_color(c->border);

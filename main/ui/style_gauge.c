@@ -182,7 +182,8 @@ static void build_page0(void) {
     // ── 顶部细进度条 + 状态文字 (右上, 对齐参考图) ──
     mk_block(card, 0, 0, 208, 3, c->border);
     s_prog_fill = mk_block(card, 0, 0, 1, 3, c->accent);
-    s_state_lbl = mk_lbl(card, "-- " L_CONNECTING, L_FONT_TEXT, c->text_secondary);
+    s_state_lbl = mk_lbl(card, "", L_FONT_TEXT, c->text_secondary);
+    if (s_state_lbl) lv_label_set_text_fmt(s_state_lbl, "-- %s", L_CONNECTING);
     if (s_state_lbl) lv_obj_align(s_state_lbl, LV_ALIGN_TOP_RIGHT, 0, 8);
 
     // ── 六个仪表环 (2 行 × 3 列) ──
@@ -231,7 +232,8 @@ static void build_page1(void) {
         lv_obj_set_size(s_file2_lbl, 208, 18);
         lv_obj_align(s_file2_lbl, LV_ALIGN_TOP_LEFT, 0, 0);
     }
-    s_layer_lbl = mk_lbl(card, L_LAYER " --/--", L_FONT_TEXT, c->text_secondary);
+    s_layer_lbl = mk_lbl(card, "--/--", L_FONT_TEXT, c->text_secondary);
+    if (s_layer_lbl) lv_label_set_text_fmt(s_layer_lbl, "%s --/--", L_LAYER);
     if (s_layer_lbl) lv_obj_align(s_layer_lbl, LV_ALIGN_TOP_LEFT, 0, 22);
     s_eta2_lbl = mk_lbl(card, "ETA --:--", L_FONT_NUM_BIG, c->accent);
     if (s_eta2_lbl) lv_obj_align(s_eta2_lbl, LV_ALIGN_TOP_LEFT, 0, 44);
@@ -401,7 +403,7 @@ void style_gauge_update(void) {
         uint32_t sc = conn ? state_color(st->state, c) : c->error;
         if (conn) snprintf(buf, sizeof(buf), "%s %s",
                            ui_theme_state_icon(st->state, true), state_text(st->state));
-        else      snprintf(buf, sizeof(buf), "%s " L_CONNECTING, LV_SYMBOL_WIFI);
+        else      snprintf(buf, sizeof(buf), "%s %s", LV_SYMBOL_WIFI, L_CONNECTING);
         lv_label_set_text(s_state_lbl, buf);
         lv_obj_set_style_text_color(s_state_lbl, lv_color_hex(sc), 0);
     }
@@ -474,7 +476,7 @@ void style_gauge_update(void) {
     if (s_page == 1) {
         // 层数行
         if (s_layer_lbl) {
-            snprintf(buf, sizeof(buf), L_LAYER " %d/%d", st->layer_num, st->total_layer);
+            snprintf(buf, sizeof(buf), "%s %d/%d", L_LAYER, st->layer_num, st->total_layer);
             lv_label_set_text(s_layer_lbl, buf);
         }
         for (int i = 0; i < 5; i++) {

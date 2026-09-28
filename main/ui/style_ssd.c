@@ -204,7 +204,8 @@ static void build_page1(void) {
     lv_obj_set_style_pad_all(card, 10, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    mk_lbl(card, LV_SYMBOL_SD_CARD " " L_AMS " SMART", L_FONT_TEXT_BIG, c->text_primary);
+    lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->text_primary);
+    if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s SMART", LV_SYMBOL_SD_CARD, L_AMS);
     // 金色分隔线 (标签印刷强调线, 呼应螺丝/金手指)
     mk_block(card, 0, 24, 204, 2, c->accent);
 
@@ -426,8 +427,8 @@ void style_ssd_update(void) {
             if (st->mc_remaining > 0) {
                 int h = st->mc_remaining / 60;
                 int m = st->mc_remaining % 60;
-                if (h > 0) snprintf(buf, sizeof(buf), "%d" L_HOUR "%02d" L_MIN, h, m);
-                else       snprintf(buf, sizeof(buf), "%d" L_MIN, m);
+                if (h > 0) snprintf(buf, sizeof(buf), "%d%s%02d%s", h, L_HOUR, m, L_MIN);
+                else       snprintf(buf, sizeof(buf), "%d%s", m, L_MIN);
             } else {
                 snprintf(buf, sizeof(buf), "--");
             }

@@ -177,8 +177,8 @@ static void cmp_value(char *buf, size_t n, int cmp, const bambu_state_t *st) {
             if (st->mc_remaining > 0) {
                 int h = st->mc_remaining / 60;
                 int m = st->mc_remaining % 60;
-                if (h > 0) snprintf(buf, n, "%d" L_HOUR "%02d" L_MIN, h, m);
-                else       snprintf(buf, n, "%d" L_MIN, m);
+                if (h > 0) snprintf(buf, n, "%d%s%02d%s", h, L_HOUR, m, L_MIN);
+                else       snprintf(buf, n, "%d%s", m, L_MIN);
             } else {
                 snprintf(buf, n, "--");
             }
@@ -269,7 +269,8 @@ static void build_page0(void) {
     }
 
     // ── 状态行 (眼下方居中) ──
-    s_state_lbl = mk_lbl(card, LV_SYMBOL_WIFI " " L_CONNECTING, L_FONT_TEXT, c->text_secondary);
+    s_state_lbl = mk_lbl(card, "", L_FONT_TEXT, c->text_secondary);
+    if (s_state_lbl) lv_label_set_text_fmt(s_state_lbl, "%s %s", LV_SYMBOL_WIFI, L_CONNECTING);
     if (s_state_lbl) lv_obj_align(s_state_lbl, LV_ALIGN_TOP_MID, 0, 118);
 
     // ── 4 行菱形符文, 串在一条竖直发光线上 ──
@@ -335,7 +336,8 @@ static void build_page1(void) {
     lv_obj_set_style_pad_all(card, 8, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    mk_lbl(card, LV_SYMBOL_SD_CARD " " L_AMS, L_FONT_TEXT_BIG, c->accent);
+    lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->accent);
+    if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s", LV_SYMBOL_SD_CARD, L_AMS);
 
     memset(s_ams_chip, 0, sizeof(s_ams_chip));
     memset(s_ams_lbl, 0, sizeof(s_ams_lbl));
@@ -501,7 +503,7 @@ void style_sheikah_update(void) {
         if (s_state_lbl) {
             if (conn) snprintf(buf, sizeof(buf), "%s %s",
                                ui_theme_state_icon(st->state, true), state_text(st->state));
-            else      snprintf(buf, sizeof(buf), "%s " L_CONNECTING, LV_SYMBOL_WIFI);
+            else      snprintf(buf, sizeof(buf), "%s %s", LV_SYMBOL_WIFI, L_CONNECTING);
             lv_label_set_text(s_state_lbl, buf);
             lv_obj_set_style_text_color(s_state_lbl, lv_color_hex(sc), 0);
         }

@@ -470,8 +470,8 @@ void style_f1_update(void) {
             if (st->mc_remaining > 0) {
                 int h = st->mc_remaining / 60;
                 int m = st->mc_remaining % 60;
-                if (h > 0) snprintf(buf, sizeof(buf), "%d" L_HOUR "%02d" L_MIN, h, m);
-                else       snprintf(buf, sizeof(buf), "%d" L_MIN, m);
+                if (h > 0) snprintf(buf, sizeof(buf), "%d%s%02d%s", h, L_HOUR, m, L_MIN);
+                else       snprintf(buf, sizeof(buf), "%d%s", m, L_MIN);
             } else {
                 snprintf(buf, sizeof(buf), "--");
             }
