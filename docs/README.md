@@ -13,9 +13,11 @@ AI Passport Bambu Monitor 是基于 FoloToy AI Passport 硬件的拓竹打印机
 | 电池电量 | CW2017 电量计（I2C），顶栏右侧显示 BAT:xx% |
 | AMS 信息 | 4 个 AMS 料槽 + 外挂料槽（Ext）：耗材类型、色块、剩余量、当前使用托盘 |
 | 风扇转速 | 冷却风扇、部件风扇百分比 |
-| 6 种 UI 风格 | 编译时由 `CFG_UI_STYLE` 选择 1 种（拓竹/赛博/希卡/纯白/工控/霓虹） |
-| 4 种颜色主题 | 深色 / 浅色 / 拓竹绿 / 马卡龙 |
-| 3 按键交互 | UP/DOWN 翻页，OK 手动刷新 |
+| 12 种 UI 风格 | 运行时由配网页下拉切换（无需重编译）：拓竹/赛博/希卡/纯白/工控/霓虹/像素/固态硬盘/F1/仪表盘/Geist/Apple |
+| 中/英双语界面 | 运行时切换，中文用按需裁剪的点阵字体（`tools/gen_cn_font.js` 生成） |
+| 运行时配网 | SoftAP + captive portal，手机填表单配置 WiFi/打印机/风格/语言/组件排序，NVS 持久化 |
+| 组件排序 | 第 1 页显示哪些数据、按什么顺序，配网页勾选+上下调序（7 套风格支持） |
+| 3 按键交互 | UP/DOWN 翻页，OK 手动刷新，OK 长按进配网 |
 | 自动重连 | WiFi 和 MQTT 断线自动重连 |
 
 ## 技术架构
@@ -26,9 +28,13 @@ AI Passport Bambu Monitor 是基于 FoloToy AI Passport 硬件的拓竹打印机
 │  main.c          启动流程 + 按键分发         │
 │  bambu_mqtt.h/c  WiFi + MQTT-TLS + JSON 解析 │
 │  bambu_state.h/c 打印机状态数据结构           │
+│  app_config.h/c  运行时配置（NVS 持久化）     │
+│  wifi_prov.h/c   配网（SoftAP + captive portal）│
 │  ui/                                         │
-│    ui_monitor.h/c  监控页面（4 种风格）        │
-│    ui_theme.h/c    颜色主题系统               │
+│    ui_monitor.h/c  风格注册表派发 + 分页（12 套）│
+│    style_*.c       各风格布局实现             │
+│    ui_theme.h/c    12 套调色板 + 对比度/色块工具│
+│    ui_lang.h/c     中英文案与字体运行时切换   │
 ├─────────────────────────────────────────────┤
 │               components/bsp/                │
 │  bsp_display / bsp_button / bsp_pins         │
@@ -91,15 +97,18 @@ JSON 数据结构（`print` 对象内的关键字段，完整报文见 [Topic-de
 │   ├── main.c              # 入口: 初始化 + 启动画面 + 按键回调
 │   ├── bambu_state.h/c     # 打印机状态数据结构 + 状态枚举
 │   ├── bambu_mqtt.h/c      # WiFi 连接 + MQTT-TLS 客户端 + JSON 解析
-│   ├── config.example.h    # 配置模板（复制为 config.h 后修改）
+│   ├── app_config.h/c      # 运行时配置（风格/语言/组件排序，NVS 持久化，回落 config.h 出厂默认）
+│   ├── wifi_prov.h/c       # 配网模式（SoftAP + captive DNS + 网页表单）
+│   ├── config.example.h    # 配置模板（复制为 config.h 后修改，可选）
 │   ├── CMakeLists.txt
 │   └── ui/
-│       ├── ui_theme.h/c    # 10 套颜色主题 + 对比度/色块/图标工具
-│       ├── ui_lang.h       # 中英文案（CFG_LANG 编译期切换）
-│       ├── ui_monitor.h/c  # 监控页面（10 种风格布局 + 分页逻辑）
-│       ├── style_*.c       # 各风格的布局实现
+│       ├── ui_theme.h/c    # 12 套调色板 + 对比度/色块/图标工具
+│       ├── ui_lang.h/c     # 中英文案与字体运行时切换
+│       ├── ui_monitor.h/c  # 风格注册表派发 + 分页逻辑
+│       ├── style_*.c       # 12 套风格的布局实现
 │       └── fonts/          # 裁剪版中文字体（tools/gen_cn_font.js 生成）
 ├── components/bsp/         # 硬件抽象层（显示 + 按键）
+├── tools/                  # gen_cn_font.js/cn_chars.txt（生成字体）、check_cjk_coverage.ps1、ui_tokens_preview.html
 ├── docs/
 │   ├── README.md           # 本文档
 │   └── development-log.md  # 开发日志（方案演进与踩坑记录）
@@ -119,9 +128,8 @@ JSON 数据结构（`print` 对象内的关键字段，完整报文见 [Topic-de
 ### 构建步骤
 
 ```bash
-# 1. 从模板创建配置文件
-cp main/config.example.h main/config.h
-# 编辑 config.h 填入 WiFi 和打印机信息
+# 1.（可选）从模板预置出厂默认配置；不填也行，烧录后可长按 OK 键用手机配网
+#    cp main/config.example.h main/config.h   # 编辑填入 WiFi/打印机/默认风格/语言
 
 # 2. 编译
 idf.py build
@@ -129,6 +137,8 @@ idf.py build
 # 3. 烧录
 idf.py -p COM3 flash monitor    # COM 口号按实际修改
 ```
+
+> 首次开机或长按 OK 键进入配网模式，手机连设备热点（形如 `Passport-XXXX`）访问 `http://192.168.4.1` 填写表单即可，风格/语言/组件排序均可随时在网页改，无需重编译。
 
 > 修改 `sdkconfig.defaults` 后需全量清理再构建：
 > `del sdkconfig && idf.py fullclean && idf.py build`
@@ -189,7 +199,7 @@ CW2017 电量计挂 I2C 总线（地址 0x63），顶栏右侧显示 `BAT:xx%`�
 
 ### 多风格 UI 与翻页
 
-共 10 套 UI 风格（设计描述见 [UI-DESIGN.md](UI-DESIGN.md)），编译时由 `config.h` 的 `CFG_UI_STYLE` 宏选择 1 种链接进固件：
+共 12 套 UI 风格（设计描述见 [UI-DESIGN.md](UI-DESIGN.md)），均为同一固件内编译，运行时由 `app_config` 的风格注册表（`style_ops`）根据 NVS 记录派发；`config.h` 的 `CFG_UI_STYLE` 仅作为 NVS 无记录时的出厂默认：
 
 | 宏值 | 源文件 | 风格 |
 |------|--------|------|
@@ -203,6 +213,8 @@ CW2017 电量计挂 I2C 总线（地址 0x63），顶栏右侧显示 `BAT:xx%`�
 | `STYLE_SSD` | style_ssd.c | 固态硬盘标签风（黑标签白印+金铜螺丝+SATA 金手指） |
 | `STYLE_F1` | style_f1.c | F1 转播计时风（碳黑 + 涂装色条行卡 + F1 红 + 旗黄计时） |
 | `STYLE_GAUGE` | style_gauge.c | 图形仪表盘风（六圆弧仪表环 + AMS 竖条电池，参考 BambuHelper） |
+| `STYLE_GEIST` | style_geist.c | Geist 控制台风（纯黑 + Vercel 蓝 + 发丝线分区，参考 Vercel Geist） |
+| `STYLE_APPLE` | style_apple.c | Apple 风（iOS 浅灰分组底 + 白色圆角卡片 + systemBlue，参考 iOS HIG） |
 
 所有风格均使用 2 页分页：
 
@@ -220,9 +232,9 @@ CW2017 电量计挂 I2C 总线（地址 0x63），顶栏右侧显示 `BAT:xx%`�
 | 编译找不到 `mqtt` 组件 | ESP-IDF 5.5.x 组件名变更 | REQUIRES 用 `mqtt` 不是 `esp_mqtt` |
 | `No server verification option set` | TLS Kconfig 依赖缺失 | 同时开启 `ESP_TLS_INSECURE` 和 `SKIP_SERVER_CERT_VERIFY` |
 | LVGL Guru Meditation Error | UI 对象指针无效访问 | 用结构体保存指针，不用 user_data 遍历 |
-| 中文显示方块 | Montserrat 字体无中文 | UI 文案使用英文或 LV_SYMBOL |
+| 中文显示方块（豆腐块） | 标签用了无中文字形的 `L_FONT_NUM`（Montserrat） | 可能含中文的标签必须用随语言切换的 `L_FONT_TEXT`；新增汉字后跑 `tools/gen_cn_font.js` 重生字体 |
 | `sdkconfig` 修改不生效 | 旧 sdkconfig 缓存 | `del sdkconfig && idf.py fullclean` |
-| 修改 UI 代码后设备无变化 | `CFG_UI_STYLE` 选的不是改的文件 | 查 map 文件确认链接的是哪个 style_*.c.obj |
+| 改风格代码后设备无变化 | 改的不是当前选中的那套风格 | 风格已改运行时选择，先在配网页确认当前风格；`CFG_UI_STYLE` 只是出厂默认，NVS 有记录时会被覆盖 |
 | AMS 数据全空 | JSON 解析路径错误 | 真实结构 `print.ams.ams[unit].tray[]`，不是 `print.ams.tray` |
 
 ## 参考项目
@@ -238,4 +250,3 @@ CW2017 电量计挂 I2C 总线（地址 0x63），顶栏右侧显示 `BAT:xx%`�
 - 打印完成通知（声音/振动）
 - 多打印机切换监控
 - 打印历史统计
-- 中文字库支持

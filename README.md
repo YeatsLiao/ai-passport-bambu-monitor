@@ -83,6 +83,16 @@
 3. 在网页中填写 WiFi（2.4GHz）、打印机 IP、序列号、访问码，从下拉框选择「界面风格」与「界面语言（中 / English）」，并可勾选 / 上下移动调整「组件排序」，点「保存并重启设备」
 4. 设备自动重启并连接 WiFi 与打印机，屏幕显示实时数据即成功
 
+配网流程实拍：
+
+| ① 设备进入配网模式，屏幕显示热点名与地址 | ② 手机浏览器打开配网页，填写 WiFi 与打印机信息 |
+|:---:|:---:|
+| ![配网模式](docs/img/prov_device_mode.png) | ![配网表单](docs/img/prov_web_form.png) |
+| ③ 同页下方勾选 / 上下移动调整「组件排序」 | ④ 保存后设备重启并提示成功 |
+| ![组件排序](docs/img/prov_comp_order.png) | ![配置已保存](docs/img/prov_web_saved.png) |
+| ⑤ 连接成功，屏幕显示实时打印数据（示例：Gauge 风格） | |
+| ![配网成功实机](docs/img/device_gauge_page0.png) | |
+
 > 配置保存在设备本地存储（NVS），不上传任何服务器。想换 WiFi 或换打印机：长按确认键重新进入配网模式即可。
 
 ### 3. 编译期配置（可选）
@@ -255,6 +265,16 @@ After flashing the firmware (prebuilt or self-built), the device enters **setup 
 2. If nothing pops up, open `http://192.168.4.1` in a browser
 3. Fill in your WiFi (2.4GHz), printer IP, serial number and access code, choose the UI style and language (中 / English), optionally reorder the data tiles under “component order”, then tap save — the device reboots
 4. The device reconnects automatically; live data on screen means success
+
+Provisioning walkthrough (real device & web photos):
+
+| ① Device enters setup mode, showing hotspot name & address | ② Open the config page on your phone and fill in WiFi & printer info |
+|:---:|:---:|
+| ![Setup mode](docs/img/prov_device_mode.png) | ![Config form](docs/img/prov_web_form.png) |
+| ③ Reorder the data tiles under “component order” | ④ After saving, the device reboots and confirms |
+| ![Component order](docs/img/prov_comp_order.png) | ![Saved](docs/img/prov_web_saved.png) |
+| ⑤ Connected — live print data on screen (Gauge style shown) | |
+| ![Provisioned device](docs/img/device_gauge_page0.png) | |
 
 > Configuration is stored locally on the device (NVS), never uploaded. To change WiFi or printer later: long-press OK to re-enter setup mode.
 

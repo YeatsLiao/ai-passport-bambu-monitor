@@ -224,7 +224,7 @@ Bambu        15:31        BAT:100%
 
 ## 阶段 7：UI 风格扩展至 10 套 + 实机走查
 
-在 v2 架构基础上持续扩展风格，最终共 10 套：bambu / dashboard / cyber / terminal / neon / sheikah / industrial / white / pixel / f1 / ssd / gauge（烧录前在 `config.h` 用 `CFG_UI_STYLE` 十选一）。
+在 v2 架构基础上持续扩展风格，此阶段累计约 10 套：bambu / cyber / sheikah / white / industrial / neon / pixel / ssd / f1 / gauge（当时仍为编译期 `config.h` 的 `CFG_UI_STYLE` 十选一；风格数与选择方式在后续阶段继续演进，见阶段 8–10）。
 
 ### 统一约定（新风格必须遵守）
 
@@ -243,6 +243,52 @@ Bambu        15:31        BAT:100%
 1. **lv_obj_align 命名对齐语义**：`LV_ALIGN_TOP_MID` 的 dx 是"对象中心"相对父中线的偏移，再减对象半宽会导致整列偏出屏幕（左列文字被裁成半截）
 2. **lv_obj 默认内边距**：`lv_obj_create` 容器自带约 7px padding，子对象被推移+裁剪（AMS 竖条填充块 16px 只剩半截），精确布局前必须显式 `pad_all(0)`
 3. **LV_LABEL_LONG_DOT 截断失效**：只固定宽不固定高时回退为 WRAP 换行，两行长文本直接挤压下方元素，必须 `lv_obj_set_size()` 同时定宽高
+
+---
+
+## 阶段 8：新增 Geist 控制台风与 Apple 风（扩展至 12 套）
+
+- `STYLE_GEIST`：参考 Vercel Geist，纯黑底 + 1px 发丝线分区 + 48pt 超大白色进度数字，强调蓝只出现在活动位置，落地 emil-design-eng 设计哲学
+- `STYLE_APPLE`：参考 iOS HIG，systemGroupedBackground 浅灰底 + 白色 inset 圆角卡片 + systemBlue，绿/橙/红用 Apple 官方 Darker 变体保证白卡上达 AA
+- 至此共 12 套风格
+
+---
+
+## 阶段 9：风格与语言改运行时选择（注册表 + NVS）
+
+- 删除编译期 `CFG_UI_STYLE` 分支，12 套风格全部编进固件，改 `style_ops` 注册表运行时派发
+- `L_*` 文案与字体改运行时切换：`ui_lang` 双语表 + 运行时字体函数（中文用按需裁剪的点阵字体，英文回退 Montserrat）
+- `app_config` 新增 `ui_style`/`lang` 字段并持久化 NVS，显示偏好独立于配网状态加载
+- 配网页新增「界面风格」与「界面语言」下拉框
+- 坑：12 个风格文件适配运行时 `L_*` 文案时，字面量拼接要改成双 `%s` 参数，并修正图标/文字顺序与 `%d%s` 时分的明暗实参错位
+
+---
+
+## 阶段 10：运行时配网（captive portal）
+
+- SoftAP + captive DNS + 网页表单：手机连设备热点填 WiFi/打印机信息，NVS 持久化，无需编译环境
+- httpd 任务栈默认仅 4096 字节，大页面缓冲必须 `static` 分配（`char page[6144]` 上栈曾致 Stack protection fault）
+- 手写 HTML 的 `snprintf` 缓冲截断导致列表显示不全 → 扩缓冲并核算长度
+- 联网探测双层防御：DNS NXDOMAIN 劫持 + HTTPS RST 判定
+
+---
+
+## 阶段 11：组件排序（运行时 + 配网页）
+
+- `app_config` 新增 `comp_order[]`/`count`，CSV 编解码 + 校验去重，持久化 NVS，保留 `CFG_COMPONENT_ORDER` 出厂默认
+- 配网页组件排序控件：9 项勾选显示 + ↑/↓ 上下移动调序 + 默认顺序开关
+- 7 套风格（bambu/white/sheikah/pixel/neon/geist/apple）渲染与更新循环运行时读取 `resolve_order`，空则回落本风格默认序
+- 坑：`order_rows` 缓冲不足导致列表只显示 5 行 → 扩至 3200
+
+---
+
+## 阶段 12：UI 现代化与实机逐套调优（本批）
+
+- 12 套风格配色按 WCAG AA 重校（正文 ≥4.5:1、大字/图形 ≥3:1）：色板以 `ui_theme.c` 为准，`tools/ui_tokens_preview.html` 离线核对；配网提示卡面底色与热点名改用主文字色（accent 仅留给图标/色块，否则 Pixel 围巾橙 1.6:1 重新看不清）
+- `STYLE_PIXEL` 色调还原为原配色，并在此基础上优化可读性
+- `STYLE_APPLE` 翻页改瞬时 `HIDDEN` 切换，删除整卡淡入 + 位移动画（SPI 屏上每帧重算半透明子树会抖成果冻）
+- `STYLE_GAUGE` 三处修复：外置槽中文标签 `L_FONT_NUM`→`L_FONT_TEXT` 消除豆腐块；五管统一 2px 边框 + 填充几何对齐修复柱状图错位（激活槽只改边框颜色不改宽度）；底部/顶部任务名行改为「模型风扇 + 腔体风扇」双读数（新增 `L_CHAMBER_FAN`）
+- 配网页面重写，改善现代视觉与配色可读性
 
 ---
 
@@ -267,12 +313,33 @@ Bambu        15:31        BAT:100%
 | 15 | 某列元素整体偏出屏幕、文字被裁半截 | `LV_ALIGN_TOP_MID` 的 dx 是对象中心相对父中线的偏移，不要再减对象半宽 |
 | 16 | 容器内子对象变窄变矮被裁剪 | `lv_obj_create` 自带默认内边距，精确布局前显式 `pad_all(0)` |
 | 17 | 长文件名标签换行两行挤压布局 | `LV_LABEL_LONG_DOT` 必须同时固定宽和高（`lv_obj_set_size`） |
+| 18 | 中文标签实机显示豆腐块 | 可能含中文的标签必须用随语言切换的 `L_FONT_TEXT`，`L_FONT_NUM`（Montserrat）无中文字形 |
+| 19 | 仪表盘竖条填充错位/被裁剪 | 子块几何依赖父边框宽度时，绝不能用变边框粗细做状态高亮（会缩小内腔破坏对齐），改用颜色区分 |
+| 20 | SPI 屏翻页整卡淡入+位移抖成果冻 | 带子树容器的 opacity+位移动画每帧重算混合，帧率不足；tab/翻页式切换用瞬时 HIDDEN 互换，大气动只放在小对象/局部属性 |
+| 21 | 明亮主题色做文字导致低对比 | 橙/黄/绿等明亮主题色只作色块（进度条/选中底托/状态点），不作卡面文字色；文字用主文字色，按 WCAG 校验 |
 
 ---
 
 ## 提交历史（分步提交记录）
 
 ```
+docs(ui): 同步 UI-DESIGN 配色/Gauge 风扇行/Apple 翻页说明，新增 design token 预览工具
+feat(prov): 配网页面重写，改善现代视觉与配色可读性
+fix(ui): STYLE_GAUGE 外置槽豆腐块/柱状图对齐修复 + 底部改模型/腔体风扇双读数
+fix(ui): STYLE_APPLE 翻页改瞬时 HIDDEN 切换，消除 SPI 屏果冻抖动
+fix(ui): STYLE_PIXEL 色调还原为原配色并优化可读性
+fix(ui): 12 套风格配色按 WCAG 对比度修复（正文≥4.5:1/大字图形≥3:1）
+docs: README 与 config.example 同步组件排序运行时说明（仅 7 套风格支持+超容量自动忽略）
+feat(prov): 配网页新增组件排序控件（9 项勾选显示+上下调序+默认顺序开关）
+feat(ui): 7 套风格组件顺序改运行时读取（resolve_order 读 app_config，空则回落默认序）
+feat(config): app_config 新增 comp_order[]/count 组件顺序字段并持久化 NVS
+feat(prov): 配网页新增界面风格与语言下拉框（save 校验+旧值兜底）
+refactor(ui): 12 风格文件适配运行时 L_* 文案（字面量拼接改双 %s 参数）
+feat(ui): 12 套风格与主题改为运行时注册表选择（style_ops 表），删除编译期 CFG_UI_STYLE 分支
+feat(config): app_config 新增 ui_style/lang 字段并持久化 NVS
+feat(ui): L_* 文案与字体改为运行时切换（ui_lang 双语表+运行时字体函数）
+feat(prov): 运行时配网功能（NVS 持久化 + captive portal + WiFi 扫描）
+fix(ui): 状态/剩余行数值改用本地化字体，修复中文值实机显示口口口
 docs: 同步风格十说明至三份文档 + 开发日志补记风格扩展
 feat: 新增第10套图形仪表盘风格 STYLE_GAUGE（六圆弧仪表环 + AMS 竖条电池）
 docs: 同步 README/开发日志 + MQTT 报文样例 + UI 设计描述
