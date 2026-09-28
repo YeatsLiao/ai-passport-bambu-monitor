@@ -75,6 +75,7 @@ static lv_obj_t *s_mascot    = NULL;            // 像素机器人
 static lv_obj_t *s_pct_lbl   = NULL;            // 超大百分比
 static lv_obj_t *s_prog      = NULL;            // 描边进度条
 static lv_obj_t *s_state_lbl = NULL;            // 状态行
+static lv_obj_t *s_state_dot = NULL;            // 状态像素色点 (明亮状态色只做色块不做文字)
 static int       s_slot_cmp[SLOT_COUNT];        // 每行对应的组件
 static lv_obj_t *s_slot_lbl[SLOT_COUNT];        // 图标 + 名称
 static lv_obj_t *s_slot_val[SLOT_COUNT];        // 右对齐数值
@@ -267,7 +268,8 @@ static uint32_t cmp_color(int cmp, const ui_theme_colors_t *c) {
         case CMP_NOZZLE:  return c->gauge_nozzle;
         case CMP_BED:     return c->gauge_bed;
         case CMP_CHAMBER: return c->gauge_chamber;
-        default:          return c->accent;
+        // 其余组件数值用墨字: 围巾橙等明亮色压纸牌作文字对比度不足 (1.6:1)
+        default:          return c->text_primary;
     }
 }
 
@@ -357,9 +359,12 @@ static void build_page0(void) {
     }
 
     // ── 状态行 ──
-    s_state_lbl = mk_lbl(panel, "", L_FONT_TEXT, c->text_secondary);
+    // 官网像素风原色 (草绿/亮黄/围巾橙) 压米白纸牌当文字看不清 (1.3~2.0:1),
+    // 改为 8×8 纯色小方块承载状态色, 文字固定墨黑: 色调还原 & 可读性两全
+    s_state_dot = block(panel, 0, 83, 8, 8, c->text_secondary);
+    s_state_lbl = mk_lbl(panel, "", L_FONT_TEXT, c->text_primary);
     if (s_state_lbl) lv_label_set_text_fmt(s_state_lbl, "%s %s", LV_SYMBOL_WIFI, L_CONNECTING);
-    if (s_state_lbl) lv_obj_set_pos(s_state_lbl, 0, 78);
+    if (s_state_lbl) lv_obj_set_pos(s_state_lbl, 12, 78);
 
     block(panel, 0, 100, 192, 2, c->border);            // 墨黑分隔线
 
@@ -607,7 +612,8 @@ void style_pixel_update(void) {
                                ui_theme_state_icon(st->state, true), state_text(st->state));
             else      snprintf(buf, sizeof(buf), "%s %s", LV_SYMBOL_WIFI, L_CONNECTING);
             lv_label_set_text(s_state_lbl, buf);
-            lv_obj_set_style_text_color(s_state_lbl, lv_color_hex(sc), 0);
+            // 状态色落在色点上 (文字保持墨黑)
+            if (s_state_dot) lv_obj_set_style_bg_color(s_state_dot, lv_color_hex(sc), 0);
         }
 
         for (int i = 0; i < SLOT_COUNT; i++) {
