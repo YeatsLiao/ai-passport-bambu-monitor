@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UI 设计 Token 预览 · 12 套风格 · WCAG 校验</title>
+<style>
+  :root{
+    --page:#f4f5f7; --ink:#111826; --sub:#5b6572; --line:#e6e8ec; --accent:#2f6fed;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    background:var(--page);color:var(--ink);padding:28px 20px 60px;-webkit-font-smoothing:antialiased}
+  header{max-width:1180px;margin:0 auto 8px}
+  h1{font-size:22px;font-weight:680;letter-spacing:-.01em;margin:0 0 6px}
+  .lead{color:var(--sub);font-size:14px;line-height:1.6;margin:0 0 18px;max-width:820px}
+  .toolbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+  .switch{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;user-select:none}
+  .switch input{width:18px;height:18px;accent-color:var(--accent)}
+  .legend{font-size:13px;color:var(--sub)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:22px;max-width:1180px;margin:0 auto}
+  figure{margin:0}
+  .frame{width:240px;height:320px;border-radius:22px;margin:0 auto;position:relative;overflow:hidden;
+    box-shadow:0 1px 2px rgba(16,24,40,.08),0 10px 30px rgba(16,24,40,.12);border:1px solid rgba(0,0,0,.15)}
+  figcaption{margin-top:10px;display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap}
+  .name{font-size:13px;font-weight:650}
+  .badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;letter-spacing:.02em}
+  .pass{background:#e7f6ec;color:#15803d}
+  .fail{background:#fdecea;color:#b42318}
+  /* generic device layout (colors per theme) */
+  .scr{position:absolute;inset:0;display:flex;flex-direction:column;font-family:inherit}
+  .bar{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;font-size:11px}
+  .body{flex:1;padding:12px 12px 8px;display:flex;flex-direction:column;gap:9px}
+  .big{font-size:40px;font-weight:750;line-height:1;letter-spacing:-.02em}
+  .bigsub{font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.85}
+  .prog{height:8px;border-radius:6px;overflow:hidden}
+  .prog i{display:block;height:100%;width:64%}
+  .rows{display:flex;flex-direction:column;gap:0}
+  .row{display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:7px 0}
+  .row .k{display:flex;align-items:center;gap:8px}
+  .dot{width:9px;height:9px;border-radius:3px;display:inline-block}
+  .cards .card{border-radius:12px;padding:10px 12px}
+  .foot{padding:6px 10px;font-size:10px;text-align:center}
+  .ams{display:flex;gap:6px;align-items:flex-end;height:34px}
+  .ams span{flex:1;border-radius:4px 4px 0 0}
+  .note{max-width:1180px;margin:26px auto 0;font-size:12.5px;color:var(--sub);line-height:1.7}
+</style>
+</head>
+<body>
+<header>
+  <h1>UI 设计 Token 预览 · 12 套风格</h1>
+  <p class="lead">每套忠实于自身主题（Pixel 硬边、Cyber 霓虹、F1 计时塔…），此处展示的是各套的语义色槽位与文字/进度示例，
+    并实时计算 WCAG 对比度。开启校验后，任何低于正文 4.5:1 / 大字与图形 3:1 的配色都会标红。带 * 的套里，某些明亮色按主题设计
+    只作带墨黑描边/托底的色块（如 Pixel 围巾橙、亮黄），不参与纸牌文字对比校验。色值与
+    <code>main/ui/ui_theme.c</code> 保持一致。</p>
+  <div class="toolbar">
+    <label class="switch"><input type="checkbox" id="wcag" checked> 显示 WCAG 对比度校验</label>
+    <span class="legend">正文需 ≥ 4.5:1，大字/进度/色块需 ≥ 3:1（AA）</span>
+  </div>
+</header>
+<div class="grid" id="grid"></div>
+<p class="note">说明：本文件是离线设计对照工具，不参与固件编译。真机各风格的独特版式（仪表环 / SSD 标签 / F1 行卡等）由对应
+  <code>style_*.c</code> 实现，这里统一用同一套示例布局仅为了横向核对配色与可读性。</p>
+
+<script>
+// 与 ui_theme.c 同步的 12 套色板（0xRRGGBB）
+const THEMES = [
+ {n:'Bambu',      bg:0x1A2332,card:0xFFFFFF,header:0x1565C0,footer:0x2E7D32,tp:0x212121,ts:0x757575,accent:0x43A047,success:0x43A047,warning:0xB26A00,error:0xE53935,border:0xE0E0E0,gz:0xE65100,gb:0x1565C0,gc:0x6A1B9A,r:6},
+ {n:'Cyber',      bg:0x0A0A0A,card:0x111111,header:0x0D0D0D,footer:0x0D0D0D,tp:0xE0E0E0,ts:0x888888,accent:0x00E5FF,success:0x00E676,warning:0xFFD600,error:0xFF1744,border:0x00E5FF,gz:0xFF6D00,gb:0x00B0FF,gc:0xD500F9,r:2},
+ {n:'Sheikah',    bg:0x0D1B2A,card:0x1B2838,header:0x0A1628,footer:0x0A1628,tp:0xB0BEC5,ts:0x9DB2C4,accent:0x3CD3FC,success:0x69F0AE,warning:0xFFD54F,error:0xFF5252,border:0x1A3A5C,gz:0xFF8A65,gb:0x4FC3F7,gc:0xBA68C8,r:4},
+ {n:'White',      bg:0xF5F5F5,card:0xFFFFFF,header:0xEEEEEE,footer:0xEEEEEE,tp:0x333333,ts:0x5F6368,accent:0x1A73E8,success:0x188038,warning:0xB45309,error:0xD93025,border:0xE0E0E0,gz:0xC53E00,gb:0x1A73E8,gc:0x8430B2,r:8},
+ {n:'Industrial', bg:0x1A1A1A,card:0x242424,header:0x141414,footer:0x141414,tp:0xC0C0C0,ts:0xA8B0B8,accent:0x00C853,success:0x00C853,warning:0xFFD600,error:0xFF1744,border:0x404040,gz:0xFF6E40,gb:0x448AFF,gc:0x7C4DFF,r:0},
+ {n:'Neon',       bg:0x121212,card:0x1E1E1E,header:0x161616,footer:0x161616,tp:0xE8E8E8,ts:0x9E9E9E,accent:0xB388FF,success:0x84FFFF,warning:0xFFD740,error:0xFF8A80,border:0x333333,gz:0xFF8A65,gb:0x80D8FF,gc:0xEA80FC,r:10},
+ {n:'Pixel',      bg:0x1689E8,card:0xF4F4EA,header:0x0872C9,footer:0x82BE2D,tp:0x17202A,ts:0x576D7A,accent:0xFFB23E,success:0x82BE2D,warning:0xFFD928,error:0xE43B2F,border:0x17202A,gz:0xE43B2F,gb:0x0872C9,gc:0x7557D9,r:0,blocksOnly:['accent','success','warning','error']},
+ {n:'SSD',        bg:0x0C0C0E,card:0x161618,header:0x0C0C0E,footer:0x0C0C0E,tp:0xF2F2F2,ts:0x8C8F94,accent:0xC9A227,success:0x35C759,warning:0xFFD300,error:0xFF4D3D,border:0x3A3D42,gz:0xD64541,gb:0x4D9FDF,gc:0x8A5CC0,r:2},
+ {n:'F1',         bg:0x0D0D0F,card:0x141519,header:0x0A0A0C,footer:0x0A0A0C,tp:0xF2F2F2,ts:0x8A8F98,accent:0xE10600,success:0x27C46F,warning:0xFFD300,error:0xFF4136,border:0x2A2D33,gz:0xFF4D2E,gb:0x2778C9,gc:0x8E6BC7,r:2},
+ {n:'Gauge',      bg:0x090B09,card:0x121412,header:0x0C0E0C,footer:0x0C0E0C,tp:0xECEEEC,ts:0x848984,accent:0x2FDB6E,success:0x2FDB6E,warning:0xFFB300,error:0xFF4D3D,border:0x2A2F2A,gz:0xFF9500,gb:0x00C8D7,gc:0x35C759,r:10},
+ {n:'Geist',      bg:0x000000,card:0x0A0A0A,header:0x000000,footer:0x000000,tp:0xEDEDED,ts:0x8F8F8F,accent:0x0070F3,success:0x29A383,warning:0xF5A623,error:0xE5484D,border:0x222222,gz:0xF5A623,gb:0x0070F3,gc:0x8E4EC6,r:8},
+ {n:'Apple',      bg:0xF2F2F7,card:0xFFFFFF,header:0xF2F2F7,footer:0xF2F2F7,tp:0x000000,ts:0x656571,accent:0x007AFF,success:0x1D8C34,warning:0xB86A00,error:0xD0281E,border:0xE5E5EA,gz:0xB86A00,gb:0x007AFF,gc:0x8944AB,r:12},
+];
+
+function hex(v){return '#'+v.toString(16).padStart(6,'0');}
+function lum(v){const c=[(v>>16)&255,(v>>8)&255,v&255].map(x=>{x/=255;return x<=0.03928?x/12.92:Math.pow((x+0.055)/1.055,2.4);});return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2];}
+function ratio(a,b){const l1=lum(a),l2=lum(b);return (Math.max(l1,l2)+0.05)/(Math.min(l1,l2)+0.05);}
+
+function build(){
+  const grid=document.getElementById('grid');
+  grid.innerHTML='';
+  THEMES.forEach(t=>{
+    const showWcag=document.getElementById('wcag').checked;
+    // 校验项：正文/次要字对卡底 4.5，语义色对卡底 3.0
+    // blocksOnly: 该套设计里只作色块（带墨黑描边/墨字托底）不参与纸牌文字对比校验，如 Pixel 明亮原色
+    const role={tp:'主字',ts:'次字',accent:'强调',success:'绿',warning:'黄',error:'红'};
+    const skip=t.blocksOnly||[];
+    const checks=[
+      ['tp',ratio(t.tp,t.card),4.5],['ts',ratio(t.ts,t.card),4.5],
+      ['accent',ratio(t.accent,t.card),3.0],['success',ratio(t.success,t.card),3.0],
+      ['warning',ratio(t.warning,t.card),3.0],['error',ratio(t.error,t.card),3.0],
+    ].filter(c=>!skip.includes(c[0])).map(c=>[role[c[0]],c[1],c[2]]);
+    const fails=checks.filter(c=>c[1]<c[2]);
+    const badge = !showWcag ? '' :
+      `<span class="badge ${fails.length?'fail':'pass'}">${fails.length?('未达标 '+fails.length):(skip.length?'AA 全通过*':'AA 全通过')}</span>`;
+    const detail = showWcag && fails.length
+      ? `<div style="font-size:10px;color:#b42318;text-align:center;max-width:240px;margin:4px auto 0">${fails.map(f=>f[0]+' '+f[1].toFixed(1)).join(' · ')}</div>` : '';
+
+    const onHead = lum(t.header)>0.5?0x000000:0xFFFFFF;
+    const onFoot = lum(t.footer)>0.5?0x000000:0xFFFFFF;
+    const fig=document.createElement('figure');
+    fig.innerHTML=`
+      <div class="frame">
+        <div class="scr" style="background:${hex(t.bg)}">
+          <div class="bar" style="background:${hex(t.header)};color:${hex(onHead)}">
+            <span>Bambu Lab · X1C</span><span>12:30</span>
+          </div>
+          <div class="body">
+            <div class="cards">
+              <div class="card" style="background:${hex(t.card)};border-radius:${t.r}px;border:1px solid ${hex(t.border)}">
+                <div class="bigsub" style="color:${hex(t.ts)}">Print Progress</div>
+                <div class="big" style="color:${hex(t.tp)}">64%</div>
+                <div class="prog" style="background:${hex(t.border)};margin-top:8px"><i style="background:${hex(t.accent)}"></i></div>
+                <div class="rows" style="margin-top:6px">
+                  <div class="row" style="color:${hex(t.tp)};border-top:1px solid ${hex(t.border)}">
+                    <span class="k"><span class="dot" style="background:${hex(t.gz)}"></span>喷嘴</span><span>218°C</span></div>
+                  <div class="row" style="color:${hex(t.tp)};border-top:1px solid ${hex(t.border)}">
+                    <span class="k"><span class="dot" style="background:${hex(t.gb)}"></span>热床</span><span>60°C</span></div>
+                  <div class="row" style="color:${hex(t.ts)};border-top:1px solid ${hex(t.border)}">
+                    <span class="k"><span class="dot" style="background:${hex(t.gc)}"></span>腔体</span><span>32°C</span></div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:${hex(t.ts)}">
+              <span style="color:${hex(t.success)}">● 打印中</span>
+              <span style="color:${hex(t.warning)}">● 预警</span>
+              <span style="color:${hex(t.error)}">● 异常</span>
+            </div>
+            <div class="ams">
+              <span style="background:${hex(t.gz)};height:80%"></span>
+              <span style="background:${hex(t.gb)};height:55%"></span>
+              <span style="background:${hex(t.gc)};height:35%"></span>
+              <span style="background:${hex(t.accent)};height:70%"></span>
+            </div>
+          </div>
+          <div class="foot" style="background:${hex(t.footer)};color:${hex(onFoot)}">剩余 01:24 · AMS 4/4 · ← →</div>
+        </div>
+      </div>
+      <figcaption><span class="name">${t.n}</span>${badge}</figcaption>${detail}`;
+    grid.appendChild(fig);
+  });
+}
+document.getElementById('wcag').addEventListener('change',build);
+build();
+</script>
+</body>
+</html>
