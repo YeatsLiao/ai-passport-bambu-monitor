@@ -124,31 +124,42 @@ static void schedule_restart(void) {
 }
 
 static const char PAGE_OK[] =
-"<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+"<!DOCTYPE html><html lang=\"zh\"><head><meta charset=\"utf-8\">"
 "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-"<style>*{box-sizing:border-box;margin:0}"
-"body{font-family:-apple-system,system-ui,sans-serif;background:linear-gradient(160deg,#0f1923,#16324a 60%,#0f1923);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}"
-".card{max-width:420px;width:100%;background:#fff;border-radius:20px;padding:28px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}"
-".logo{width:60px;height:60px;border-radius:16px;background:linear-gradient(135deg,#00c853,#009624);display:flex;align-items:center;justify-content:center;font-size:30px;margin:0 auto 16px}"
-"h1{font-size:19px;color:#111;margin-bottom:12px}"
-".ok{background:#e8f5e9;border-radius:14px;padding:18px 16px;color:#1b5e20;font-size:15px;line-height:1.7;text-align:left}"
-".ok b{font-size:16px}.hint{margin-top:14px;font-size:12px;color:#999;line-height:1.6}</style></head><body>"
-"<div class=\"card\"><div class=\"logo\">🖨</div>"
+"<title>配置已保存</title>"
+"<style>:root{--bg:#f4f5f7;--card:#fff;--ink:#111826;--sub:#5b6572;--line:#e6e8ec;--ok:#15803d;--okbg:#f0fdf4}"
+"*{box-sizing:border-box;margin:0}"
+"body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;-webkit-font-smoothing:antialiased}"
+".card{max-width:420px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:32px 26px;text-align:center;box-shadow:0 1px 2px rgba(16,24,40,.04),0 12px 28px rgba(16,24,40,.06)}"
+".mark{width:56px;height:56px;border-radius:16px;background:var(--okbg);display:flex;align-items:center;justify-content:center;margin:0 auto 18px}"
+"h1{font-size:19px;font-weight:650;letter-spacing:-.01em;margin-bottom:12px}"
+".ok{background:var(--okbg);border:1px solid #bbf7d0;border-radius:12px;padding:16px;color:var(--ok);font-size:15px;line-height:1.7;text-align:left}"
+".ok b{font-size:16px}.hint{margin-top:16px;font-size:13px;color:var(--sub);line-height:1.6}</style></head><body>"
+"<div class=\"card\"><div class=\"mark\"><svg viewBox=\"0 0 24 24\" width=\"28\" height=\"28\" fill=\"none\" stroke=\"#15803d\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 12.5l2.5 2.5 5-5.5\"/></svg></div>"
 "<h1>拓竹打印机监控器</h1>"
-"<div class=\"ok\"><b>✔ 配置已保存</b><br>设备正在重启，稍后会自动连接你的 WiFi 并显示打印数据。</div>"
+"<div class=\"ok\"><b>配置已保存</b><br>设备正在重启，稍后会自动连接你的 WiFi 并显示打印数据。</div>"
 "<div class=\"hint\">若未连上：长按设备 OK 键可重新进入本页面。</div>"
 "</div></body></html>";
 
 static const char PAGE_ERR[] =
-"<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+"<!DOCTYPE html><html lang=\"zh\"><head><meta charset=\"utf-8\">"
 "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-"<style>*{box-sizing:border-box;margin:0}"
-"body{font-family:-apple-system,system-ui,sans-serif;background:linear-gradient(160deg,#0f1923,#16324a 60%%,#0f1923);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}"
-".card{max-width:420px;width:100%%;background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 20px 60px rgba(0,0,0,.35)}"
-".err{background:#fdecea;border-radius:14px;padding:18px 16px;color:#b71c1c;font-size:15px;line-height:1.7}"
-".err b{font-size:16px}a{display:inline-block;margin-top:18px;padding:12px 20px;border-radius:12px;background:#0f1923;color:#fff;text-decoration:none;font-size:14px;font-weight:600}</style></head><body>"
-"<div class=\"card\"><div class=\"err\"><b>✘ 保存失败</b><br>%s</div>"
-"<a href=\"/\">← 返回重新填写</a></div></body></html>";
+"<title>保存失败</title>"
+"<style>:root{--bg:#f4f5f7;--card:#fff;--ink:#111826;--line:#e6e8ec;--accent:#2f6fed;--err:#b42318;--errbg:#fef3f2}"
+"*{box-sizing:border-box;margin:0}"
+"body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px;-webkit-font-smoothing:antialiased}"
+".card{max-width:420px;width:100%%;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:30px 26px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 12px 28px rgba(16,24,40,.06)}"
+".mark{width:52px;height:52px;border-radius:15px;background:var(--errbg);display:flex;align-items:center;justify-content:center;margin:0 auto 16px}"
+".err{background:var(--errbg);border:1px solid #fecdca;border-radius:12px;padding:16px;color:var(--err);font-size:15px;line-height:1.6}"
+".err b{display:block;font-size:16px;margin-bottom:4px}"
+"a{display:flex;align-items:center;justify-content:center;min-height:48px;margin-top:18px;border-radius:12px;background:var(--accent);color:#fff;text-decoration:none;font-size:15px;font-weight:600}</style></head><body>"
+"<div class=\"card\"><div class=\"mark\"><svg viewBox=\"0 0 24 24\" width=\"26\" height=\"26\" fill=\"none\" stroke=\"#b42318\" stroke-width=\"1.9\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7.5v6\"/><path d=\"M12 16.5v.01\"/></svg></div>"
+"<div class=\"err\"><b>保存失败</b>%s</div>"
+"<a href=\"/\">返回重新填写</a></div></body></html>";
+
+// 配页静态存储: httpd 单线程顺序处理, 用 static 避免大数组占用栈内存
+// (含风格/语言下拉框 + 组件排序列表后页面 ~9KB, 各参数取最坏长度时 ~12.6KB, 预留 16KB 消除截断警告)
+static char s_page[16384];
 
 // http_404: 重定向到绝对 IP, 确保手机 captive portal WebView 能准确找到配置页
 // 注意: iOS 要求响应体必须有内容, 否则不识别为 captive portal
@@ -211,19 +222,17 @@ static esp_err_t save_post(httpd_req_t *req) {
     else if (!cfg.printer_serial[0]) err = "打印机序列号不能为空";
     else if (!cfg.access_code[0]) err = "访问码不能为空";
     if (err) {
-        char page[1024];
-        snprintf(page, sizeof(page), PAGE_ERR, err);
+        snprintf(s_page, sizeof(s_page), PAGE_ERR, err);
         httpd_resp_set_type(req, "text/html");
-        httpd_resp_send(req, page, HTTPD_RESP_USE_STRLEN);
+        httpd_resp_send(req, s_page, HTTPD_RESP_USE_STRLEN);
         return ESP_OK;
     }
 
     esp_err_t ret = app_config_save(&cfg);
     if (ret != ESP_OK) {
-        char page[1024];
-        snprintf(page, sizeof(page), PAGE_ERR, "写入存储失败");
+        snprintf(s_page, sizeof(s_page), PAGE_ERR, "写入存储失败");
         httpd_resp_set_type(req, "text/html");
-        httpd_resp_send(req, page, HTTPD_RESP_USE_STRLEN);
+        httpd_resp_send(req, s_page, HTTPD_RESP_USE_STRLEN);
         return ESP_OK;
     }
 
@@ -237,10 +246,6 @@ bad_request:
     httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "body too large");
     return ESP_OK;
 }
-
-// 配页静态存储: httpd 单线程顺序处理, 用 static 避免大数组占用栈内存
-// (含风格/语言下拉框 + 组件排序列表后页面 ~9KB, 预留到 12KB)
-static char s_page[12288];
 
 // ---------------------------------------------------------------------------
 // WiFi 扫描接口 (GET /api/scan)
@@ -368,48 +373,54 @@ static esp_err_t root_get(httpd_req_t *req) {
 "<!DOCTYPE html><html lang=\"zh\"><head><meta charset=\"utf-8\">"
 "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1,viewport-fit=cover\">"
 "<title>拓竹打印机监控器 · 配置</title>"
-"<style>*{box-sizing:border-box;margin:0}"
-"body{font-family:-apple-system,system-ui,sans-serif;background:linear-gradient(160deg,#0f1923,#16324a 60%%,#0f1923);min-height:100vh;padding:28px 16px}"
-".card{max-width:420px;margin:0 auto;background:#fff;border-radius:20px;padding:26px 22px;box-shadow:0 20px 60px rgba(0,0,0,.35)}"
+"<style>:root{--bg:#f4f5f7;--card:#fff;--ink:#111826;--label:#3c4654;--sub:#5b6572;--line:#e6e8ec;--field:#f7f8fa;--field-line:#dfe3e8;--accent:#2f6fed;--accent-ink:#eef3ff;--danger:#b42318;--radius:12px}"
+"*{box-sizing:border-box;margin:0}"
+"body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;padding:28px 16px;-webkit-font-smoothing:antialiased}"
+".card{max-width:430px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px 22px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 12px 28px rgba(16,24,40,.06)}"
 ".head{display:flex;align-items:center;gap:14px}"
-".logo{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#00c853,#009624);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0}"
-"h1{font-size:19px;color:#111}"
-"p.tip{font-size:13px;color:#8a939e;line-height:1.6;margin-top:5px}"
-".sec{margin-top:24px;font-size:12px;font-weight:700;color:#009624;letter-spacing:.06em;display:flex;align-items:center;gap:10px}"
-".sec:after{content:\"\";flex:1;height:1px;background:#e8ebef}"
-"label{display:block;font-size:13px;color:#5a6470;margin:14px 0 6px;font-weight:600}"
-"label em{font-style:normal;color:#009624}"
-"input{width:100%%;padding:12px;border:1.5px solid #e2e5e9;border-radius:12px;font-size:16px;background:#f7f8fa;color:#111;transition:border-color .2s,box-shadow .2s;-webkit-appearance:none}"
-"input:focus{outline:none;border-color:#00ae42;background:#fff;box-shadow:0 0 0 3px rgba(0,174,66,.13)}"
-"select{width:100%%;padding:12px;border:1.5px solid #e2e5e9;border-radius:12px;font-size:16px;background:#f7f8fa;color:#111;-webkit-appearance:none}"
-".olist{border:1.5px solid #e2e5e9;border-radius:12px;overflow:hidden;margin-top:4px;transition:opacity .2s}"
+".logo{width:46px;height:46px;border-radius:13px;background:var(--accent-ink);display:flex;align-items:center;justify-content:center;flex-shrink:0}"
+"h1{font-size:19px;font-weight:650;letter-spacing:-.01em}"
+"p.tip{font-size:13px;color:var(--sub);line-height:1.6;margin-top:4px}"
+".sec{margin-top:26px;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:.05em;display:flex;align-items:center;gap:10px}"
+".sec:after{content:\"\";flex:1;height:1px;background:var(--line)}"
+"label{display:block;font-size:13px;color:var(--label);margin:14px 0 6px;font-weight:600}"
+"label em{font-style:normal;color:var(--danger)}"
+"input:not([type=checkbox]):not([type=hidden]),select{width:100%%;padding:12px 14px;min-height:46px;border:1.5px solid var(--field-line);border-radius:var(--radius);font-size:16px;background:var(--field);color:var(--ink);-webkit-appearance:none;appearance:none;transition:border-color .15s,box-shadow .15s}"
+"input:focus,select:focus{outline:none;border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px rgba(47,111,237,.15)}"
+".selwrap{position:relative}"
+".selwrap select{padding-right:38px}"
+".selwrap:after{content:\"\";position:absolute;right:16px;top:50%%;width:9px;height:9px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:translateY(-70%%) rotate(45deg);pointer-events:none}"
+".netsel{margin-top:8px}"
+".btnline{display:flex;gap:8px}"
+".scanbtn{flex-shrink:0;width:auto;min-height:46px;margin:0;padding:0 16px;background:var(--field);border:1.5px solid var(--field-line);border-radius:var(--radius);color:var(--label);font-size:15px;font-weight:600;cursor:pointer;-webkit-appearance:none;appearance:none}"
+".scanbtn:active{background:#e9edf2}"
+".olist{border:1.5px solid var(--field-line);border-radius:var(--radius);overflow:hidden;margin-top:4px;transition:opacity .2s}"
 ".olist.off{opacity:.4;pointer-events:none}"
-".orow{display:flex;align-items:center;justify-content:space-between;padding:9px 10px;border-bottom:1px solid #eef1f4;background:#fff}"
+".orow{display:flex;align-items:center;justify-content:space-between;min-height:52px;padding:10px 12px;border-bottom:1px solid var(--line);background:#fff}"
 ".orow:last-child{border-bottom:0}"
-".olab{display:flex;align-items:center;gap:10px;margin:0;font-size:15px;color:#111;font-weight:500;cursor:pointer}"
-".oidx{display:inline-flex;width:22px;height:22px;border-radius:6px;background:#eef1f4;color:#5a6470;font-size:12px;align-items:center;justify-content:center;font-weight:700}"
-".ochk{width:18px;height:18px;flex-shrink:0;margin:0}"
-".omv button{width:34px;height:30px;margin:0;padding:0;border:1px solid #d0d8e0;border-radius:8px;background:#f0f4f8;color:#1a3a52;font-size:15px;line-height:1;box-shadow:none;cursor:pointer}"
-".omv button+button{margin-left:6px}"
-".odflt{display:flex;align-items:center;gap:8px;font-size:13px;color:#5a6470;font-weight:600}"
-".odflt input{width:16px;height:16px;margin:0}"
-"button{width:100%%;margin-top:28px;padding:14px;border:0;border-radius:14px;"
-"background:linear-gradient(135deg,#00c853,#009624);color:#fff;font-size:16px;font-weight:700;"
-"box-shadow:0 8px 20px rgba(0,174,66,.32);cursor:pointer}"
-"button:active{transform:scale(.98)}"
-".foot{max-width:420px;margin:16px auto 0;text-align:center;font-size:12px;color:rgba(255,255,255,.5);line-height:1.6}</style>"
+".olab{display:flex;align-items:center;gap:11px;margin:0;font-size:15px;color:var(--ink);font-weight:500;cursor:pointer}"
+".oidx{display:inline-flex;width:24px;height:24px;border-radius:7px;background:#eef1f4;color:#48525f;font-size:12px;align-items:center;justify-content:center;font-weight:700}"
+".ochk{width:20px;height:20px;min-height:0;flex-shrink:0;margin:0;padding:0;border:0;accent-color:var(--accent)}"
+".omv{display:flex;gap:6px}"
+".omv button{width:40px;height:40px;min-width:40px;margin:0;padding:0;border:1px solid var(--field-line);border-radius:9px;background:var(--field);color:var(--label);font-size:16px;line-height:1;cursor:pointer;-webkit-appearance:none;appearance:none}"
+".omv button:active{background:#e9edf2}"
+".odflt{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--label);font-weight:600;cursor:pointer}"
+".odflt input{width:18px;height:18px;min-height:0;margin:0;padding:0;border:0;accent-color:var(--accent)}"
+"button.submit{width:100%%;min-height:50px;margin-top:28px;padding:14px;border:0;border-radius:14px;background:var(--accent);color:#fff;font-size:16px;font-weight:650;cursor:pointer;transition:filter .15s}"
+"button.submit:active{filter:brightness(.94)}"
+".foot{max-width:430px;margin:16px auto 0;text-align:center;font-size:12.5px;color:var(--sub);line-height:1.6}</style>"
 "</head><body>"
 "<div class=\"card\">"
-"<div class=\"head\"><div class=\"logo\">🖨</div><div><h1>拓竹打印机监控器</h1>"
+"<div class=\"head\"><div class=\"logo\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"#2f6fed\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 9V4h12v5\"/><rect x=\"4\" y=\"9\" width=\"16\" height=\"7\" rx=\"1.6\"/><path d=\"M7 16h10v4H7z\"/></svg></div><div><h1>拓竹打印机监控器</h1>"
 "<p class=\"tip\">填写后点保存，设备自动重启并连接</p></div></div>"
 "<form method=\"POST\" action=\"/save\" onsubmit=\"buildOrder()\">"
-"<div class=\"sec\">WIFI \u00b7 \u4ec5\u652f持 2.4GHz</div>"
-"<label>WiFi \u540d\u79f0 <em>*</em></label>"
-"<div style=\"display:flex;gap:8px\">"
-"<input id=\"ssid\" name=\"ssid\" required maxlength=\"32\" value=\"%s\" placeholder=\"\u8f93\u5165\u6216\u70b9\u51fb\u626b\u63cf\" autocomplete=\"off\" style=\"flex:1\">"
-"<button type=\"button\" onclick=\"scanWifi()\" id=\"scanbtn\" style=\"flex-shrink:0;width:auto;margin:0;padding:0 14px;background:#f0f4f8;border:1.5px solid #d0d8e0;border-radius:12px;color:#1a3a52;font-size:14px;font-weight:600;box-shadow:none;cursor:pointer\">\xf0\x9f\x94\x8d \u626b\u63cf</button>"
+"<div class=\"sec\">WIFI · 仅支持 2.4GHz</div>"
+"<label>WiFi 名称 <em>*</em></label>"
+"<div class=\"btnline\">"
+"<input id=\"ssid\" name=\"ssid\" required maxlength=\"32\" value=\"%s\" placeholder=\"输入或点击扫描\" autocomplete=\"off\" style=\"flex:1\">"
+"<button type=\"button\" class=\"scanbtn\" id=\"scanbtn\" onclick=\"scanWifi()\">扫描</button>"
 "</div>"
-"<select id=\"netsel\" onchange=\"pickNet()\" style=\"display:none;width:100%%;margin-top:8px;padding:10px;border-radius:10px;border:1.5px solid #e2e5e9;font-size:15px;background:#f7f8fa;color:#111\"></select>"
+"<select id=\"netsel\" class=\"netsel\" onchange=\"pickNet()\" style=\"display:none\"></select>"
 "<label>WiFi 密码%s</label>"
 "<input name=\"pass\" type=\"password\" maxlength=\"64\" placeholder=\"%s\">"
 "<div class=\"sec\">打印机 · 需开启仅局域网模式</div>"
@@ -419,31 +430,31 @@ static esp_err_t root_get(httpd_req_t *req) {
 "<input name=\"serial\" required maxlength=\"30\" value=\"%s\" placeholder=\"打印机序列号\" autocomplete=\"off\">"
 "<label>访问码（8 位，打印机 设置→网络）%s</label>"
 "<input name=\"code\" maxlength=\"32\" %splaceholder=\"%s\" autocomplete=\"off\">"
-"<div class=\"sec\">\u663e\u793a\u8bbe\u7f6e \u00b7 \u91cd\u542f\u540e\u751f\u6548</div>"
-"<label>\u754c\u9762\u98ce\u683c</label>"
-"<select name=\"style\">%s</select>"
-"<label>\u754c\u9762\u8bed\u8a00 / Language</label>"
-"<select name=\"lang\">%s</select>"
+"<div class=\"sec\">显示设置 · 重启后生效</div>"
+"<label>界面风格</label>"
+"<div class=\"selwrap\"><select name=\"style\">%s</select></div>"
+"<label>界面语言 / Language</label>"
+"<div class=\"selwrap\"><select name=\"lang\">%s</select></div>"
 "<label style=\"margin-top:16px\">组件排序（勾选显示 · 上移/下移调序）</label>"
 "<label class=\"odflt\" style=\"margin:6px 0\"><input type=\"checkbox\" id=\"usedefault\" onchange=\"toggleDefault()\"%s> 使用各风格推荐默认顺序</label>"
 "<div id=\"orderlist\" class=\"olist%s\">%s</div>"
 "<input type=\"hidden\" name=\"order\" id=\"orderfield\" value=\"\">"
-"<button type=\"submit\">保存并重启设备</button>"
+"<button type=\"submit\" class=\"submit\">保存并重启设备</button>"
 "</form></div>"
-"<div class=\"foot\">\u914d\u7f6e\u4ec5\u4fdd\u5b58\u5728\u8bbe\u5907\u672c\u5730，\u4e0d\u4f1a\u4e0a\u4f20\u4efb\u4f55\u670d\u52a1\u5668<br>\u6b64\u70ed\u70b9\u65e0\u4e92\u8054\u7f51\u5c5e\u6b63\u5e38\u73b0\u8c61，\u76f4\u63a5\u586b\u5199\u8868\u5355\u5373\u53ef</div>"
+"<div class=\"foot\">配置仅保存在设备本地，不会上传任何服务器<br>此热点无互联网属正常现象，直接填写表单即可</div>"
 "<script>"
+"function setScan(t){var b=document.getElementById('scanbtn');b.textContent=t;b.disabled=(t!=='扫描');}"
 "async function scanWifi(){"
-"var b=document.getElementById('scanbtn');"
-"b.textContent='\u626b\u63cf\u4e2d\u2026';b.disabled=true;"
+"setScan('扫描中…');"
 "try{"
 "var r=await fetch('/api/scan');"
 "var ns=await r.json();"
 "var s=document.getElementById('netsel');"
-"s.innerHTML='<option value=\"\">\u2014 \u9009\u62e9\u7f51\u7edc \u2014</option>';"
-"ns.forEach(function(n){var o=document.createElement('option');o.value=n.s;o.textContent=n.s+'  '+n.r+'dBm'+(n.e?' \xf0\x9f\x94\x92':'');s.appendChild(o);});"
+"s.innerHTML='<option value=\"\">— 选择网络 —</option>';"
+"ns.forEach(function(n){var o=document.createElement('option');o.value=n.s;o.textContent=n.s+'  '+n.r+'dBm'+(n.e?' 加密':'');s.appendChild(o);});"
 "s.style.display='block';"
-"}catch(e){alert('\u626b\u63cf\u5931\u8d25，\u8bf7\u624b\u52a8\u8f93\u5165 WiFi \u540d\u79f0');}"
-"b.textContent='\xf0\x9f\x94\x8d \u626b\u63cf';b.disabled=false;}"
+"}catch(e){alert('扫描失败，请手动输入 WiFi 名称');}"
+"setScan('扫描');}"
 "function pickNet(){var v=document.getElementById('netsel').value;if(v)document.getElementById('ssid').value=v;}"
 "function mvUp(b){var r=b.closest('.orow');var p=r.previousElementSibling;if(p)r.parentNode.insertBefore(r,p);}"
 "function mvDn(b){var r=b.closest('.orow');var n=r.nextElementSibling;if(n)r.parentNode.insertBefore(n,r);}"
