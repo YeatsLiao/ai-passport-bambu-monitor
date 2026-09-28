@@ -16,6 +16,12 @@ void ui_monitor_enter(void);
 void ui_monitor_exit(void);
 void ui_monitor_key(bsp_btn_t btn, bsp_btn_ev_t ev);
 
+// MQTT 启动超时时调用: 叠加全屏配置指引卡 (连接成功后由刷新定时器自动撤除)
+void ui_monitor_show_setup_hint(void);
+
+// 进入配网模式后调用: 叠加全屏配网指引卡 (热点名 + 网页地址, 不可撤除)
+void ui_monitor_show_prov_mode(const char *ap_ssid);
+
 // 框架函数（风格文件调用以重建页面）
 void rebuild_page(void);
 

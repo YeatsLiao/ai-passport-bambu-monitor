@@ -2,9 +2,9 @@
 //
 // 连接流程:
 //   1. 初始化 NVS + network stack
-//   2. WiFi STA 连接 (CFG_WIFI_SSID / CFG_WIFI_PASSWORD)
-//   3. MQTT-TLS 连接 (mqtts://CFG_PRINTER_IP:8883, user=bblp, pass=CFG_ACCESS_CODE)
-//   4. 订阅 device/CFG_PRINTER_SERIAL/report
+//   2. WiFi STA 连接 (运行时配置 app_config: NVS 保存值或 config.h 编译期默认值)
+//   3. MQTT-TLS 连接 (mqtts://打印机IP:8883, user=bblp, pass=访问码)
+//   4. 订阅 device/<序列号>/report
 //   5. 收到 JSON → 解析 → 更新 g_bambu_state
 //
 // 内存优化:
@@ -14,6 +14,7 @@
 
 #include "bambu_mqtt.h"
 #include "config.h"
+#include "app_config.h"
 #include "bambu_state.h"
 
 #include "esp_log.h"
@@ -97,8 +98,10 @@ static esp_err_t wifi_connect(void) {
             .threshold.authmode = WIFI_AUTH_WPA2_PSK,
         },
     };
-    strncpy((char *)wifi_config.sta.ssid, CFG_WIFI_SSID, sizeof(wifi_config.sta.ssid) - 1);
-    strncpy((char *)wifi_config.sta.password, CFG_WIFI_PASSWORD, sizeof(wifi_config.sta.password) - 1);
+    // 凭据来自运行时配置 (NVS 保存值或编译期默认值)
+    const app_config_t *app_cfg = app_config_get();
+    strncpy((char *)wifi_config.sta.ssid, app_cfg->wifi_ssid, sizeof(wifi_config.sta.ssid) - 1);
+    strncpy((char *)wifi_config.sta.password, app_cfg->wifi_pass, sizeof(wifi_config.sta.password) - 1);
 
     ret = esp_wifi_set_mode(WIFI_MODE_STA);
     ret |= esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
@@ -304,16 +307,19 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
 static esp_err_t mqtt_connect(void) {
     s_conn_state = MQTT_ST_MQTT_CONNECTING;
 
+    // 凭据来自运行时配置 (app_config 单例, 指针生命周期覆盖整个连接期)
+    const app_config_t *cfg = app_config_get();
+
     // 构建 topic
     snprintf(s_topic_report, sizeof(s_topic_report),
-             "device/%s/report", CFG_PRINTER_SERIAL);
+             "device/%s/report", cfg->printer_serial);
     snprintf(s_topic_request, sizeof(s_topic_request),
-             "device/%s/request", CFG_PRINTER_SERIAL);
+             "device/%s/request", cfg->printer_serial);
 
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker = {
             .address = {
-                .hostname = CFG_PRINTER_IP,
+                .hostname = cfg->printer_ip,
                 .port = CFG_MQTT_PORT,
                 .transport = MQTT_TRANSPORT_OVER_SSL,
             },
@@ -326,7 +332,7 @@ static esp_err_t mqtt_connect(void) {
             .username = "bblp",
             .client_id = "ai-passport-monitor",
             .authentication = {
-                .password = CFG_ACCESS_CODE,
+                .password = cfg->access_code,
             },
         },
         .network = {
@@ -355,7 +361,7 @@ static esp_err_t mqtt_connect(void) {
         return ret;
     }
 
-    ESP_LOGI(TAG, "MQTT 连接中 %s:%d ...", CFG_PRINTER_IP, CFG_MQTT_PORT);
+    ESP_LOGI(TAG, "MQTT 连接中 %s:%d ...", cfg->printer_ip, CFG_MQTT_PORT);
     return ESP_OK;
 }
 
@@ -397,6 +403,9 @@ void bambu_mqtt_stop(void) {
         esp_wifi_deinit();
         s_wifi_started = false;
     }
+    // 注: 注销事件 handler 必须在 esp_wifi_deinit() 之后，确保不会再有任何 WiFi/IP 事件到达
+    esp_event_handler_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler);
+    esp_event_handler_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event_handler);
     if (s_sta_netif) {
         esp_netif_destroy_default_wifi(s_sta_netif);
         s_sta_netif = NULL;

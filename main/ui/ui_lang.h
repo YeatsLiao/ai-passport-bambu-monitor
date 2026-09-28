@@ -43,6 +43,15 @@
     #define L_NAV_HINT          LV_SYMBOL_UP LV_SYMBOL_DOWN " 翻页   " LV_SYMBOL_REFRESH " 刷新"
     #define L_MIN               "分"
     #define L_HOUR              "时"
+    // 连接失败指引 (MQTT 启动超时时叠加在监控页上, 连接成功后自动撤除)
+    #define L_SETUP_TITLE       "无法连接网络"
+    #define L_SETUP_HINT        "无法连接 WiFi 或打印机。长按 OK 键进入配网模式：手机连接设备热点，在网页中填写 WiFi 与打印机信息即可，无需重新编译。"
+    // 配网模式 (SoftAP 热点 + 网页表单)
+    #define L_PROV_TITLE        "配网模式"
+    #define L_PROV_STEP1        "手机连接热点"
+    #define L_PROV_STEP2        "浏览器打开"
+    #define L_PROV_URL          "http://192.168.4.1"
+    #define L_PROV_STEP3        "填写 WiFi 与打印机信息，保存后设备自动重启"
 
     // 中文字体: 裁剪版 Noto Sans SC (只含汉字子集, ASCII 自动 fallback 到 Montserrat)
     #define L_FONT_TEXT         &lv_font_cn_14
@@ -76,6 +85,15 @@
     #define L_NAV_HINT          LV_SYMBOL_UP LV_SYMBOL_DOWN " page   " LV_SYMBOL_REFRESH " refresh"
     #define L_MIN               "min"
     #define L_HOUR              "h"
+    // Connection-failure guidance (overlay when MQTT startup times out, auto-dismissed on connect)
+    #define L_SETUP_TITLE       "Network not connected"
+    #define L_SETUP_HINT        "Cannot reach WiFi or the printer. Long-press OK to enter setup mode: connect your phone to the device hotspot and fill in WiFi and printer info on the web page — no rebuild needed."
+    // Setup mode (SoftAP hotspot + web form)
+    #define L_PROV_TITLE        "Setup Mode"
+    #define L_PROV_STEP1        "Connect phone to hotspot"
+    #define L_PROV_STEP2        "Open in browser"
+    #define L_PROV_URL          "http://192.168.4.1"
+    #define L_PROV_STEP3        "Fill in WiFi and printer info. The device reboots after saving."
 
     #define L_FONT_TEXT         &lv_font_montserrat_14
     #define L_FONT_TEXT_BIG     &lv_font_montserrat_20

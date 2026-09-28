@@ -2,6 +2,8 @@ idf_component_register(
     SRCS "main.c"
          "bambu_state.c"
          "bambu_mqtt.c"
+         "app_config.c"
+         "wifi_prov.c"
          "ui/ui_theme.c"
          "ui/ui_monitor.c"
          "ui/fonts/lv_font_cn_14.c"
@@ -19,6 +21,6 @@ idf_component_register(
          "ui/style_geist.c"
          "ui/style_apple.c"
     INCLUDE_DIRS "."
-    REQUIRES bsp esp_event esp_hw_support esp_netif esp_wifi esp_timer
-             mqtt nvs_flash json lwip
+    REQUIRES bsp dns_server esp_event esp_hw_support esp_netif esp_wifi esp_timer
+             mqtt nvs_flash json lwip esp_http_server
 )
