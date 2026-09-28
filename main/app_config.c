@@ -20,6 +20,11 @@ static const char *TAG = "app_config";
 #define KEY_IP     "ip"
 #define KEY_SERIAL "serial"
 #define KEY_CODE   "code"
+#define KEY_STYLE  "style"
+#define KEY_LANG   "lang"
+
+#define STYLE_MIN  1      // STYLE_BAMBU
+#define STYLE_MAX  12     // STYLE_APPLE
 
 static app_config_t s_cfg;
 static bool s_provisioned = false;
@@ -29,8 +34,22 @@ static bool compile_cfg_valid(void) {
     return CFG_WIFI_SSID[0] != '\0' && strcmp(CFG_WIFI_SSID, "YOUR_WIFI_SSID") != 0;
 }
 
+// 显示偏好 (风格/语言) 独立于网络配网状态: 只要 NVS 有合法值就采用
+static void load_display_prefs(nvs_handle_t h) {
+    uint8_t v;
+    if (nvs_get_u8(h, KEY_STYLE, &v) == ESP_OK && v >= STYLE_MIN && v <= STYLE_MAX) {
+        s_cfg.ui_style = v;
+    }
+    if (nvs_get_u8(h, KEY_LANG, &v) == ESP_OK && (v == LANG_EN || v == LANG_CN)) {
+        s_cfg.lang = v;
+    }
+}
+
 esp_err_t app_config_init(void) {
     memset(&s_cfg, 0, sizeof(s_cfg));
+    // 显示默认值: 编译期 config.h (NVS 有记录时被覆盖)
+    s_cfg.ui_style = CFG_UI_STYLE;
+    s_cfg.lang     = CFG_LANG;
     s_provisioned = false;
 
     esp_err_t ret = nvs_flash_init();
@@ -49,6 +68,7 @@ esp_err_t app_config_init(void) {
     if (ret == ESP_OK) {
         size_t len;
         bool ok = true;
+        load_display_prefs(h);
         len = sizeof(s_cfg.wifi_ssid);
         ok = ok && nvs_get_str(h, KEY_SSID, s_cfg.wifi_ssid, &len) == ESP_OK;
         len = sizeof(s_cfg.wifi_pass);
@@ -61,7 +81,13 @@ esp_err_t app_config_init(void) {
         ok = ok && nvs_get_str(h, KEY_CODE, s_cfg.access_code, &len) == ESP_OK;
         nvs_close(h);
         s_provisioned = ok && s_cfg.wifi_ssid[0] != '\0';
-        if (!s_provisioned) memset(&s_cfg, 0, sizeof(s_cfg));
+        if (!s_provisioned) {
+            // 网络配置不完整: 清回默认, 但保留已读到的显示偏好 (风格/语言)
+            uint8_t keep_style = s_cfg.ui_style, keep_lang = s_cfg.lang;
+            memset(&s_cfg, 0, sizeof(s_cfg));
+            s_cfg.ui_style = keep_style;
+            s_cfg.lang     = keep_lang;
+        }
     }
 
     if (s_provisioned) {
@@ -104,6 +130,8 @@ esp_err_t app_config_save(const app_config_t *cfg) {
     if (ret == ESP_OK) ret = nvs_set_str(h, KEY_IP, cfg->printer_ip);
     if (ret == ESP_OK) ret = nvs_set_str(h, KEY_SERIAL, cfg->printer_serial);
     if (ret == ESP_OK) ret = nvs_set_str(h, KEY_CODE, cfg->access_code);
+    if (ret == ESP_OK) ret = nvs_set_u8(h, KEY_STYLE, cfg->ui_style);
+    if (ret == ESP_OK) ret = nvs_set_u8(h, KEY_LANG, cfg->lang);
     if (ret == ESP_OK) ret = nvs_commit(h);
     nvs_close(h);
 

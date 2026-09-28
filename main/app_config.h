@@ -8,6 +8,7 @@
 #include "esp_err.h"
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 typedef struct {
     char wifi_ssid[33];        // 2.4GHz WiFi 名称
@@ -15,6 +16,8 @@ typedef struct {
     char printer_ip[16];       // 打印机局域网 IP
     char printer_serial[32];   // 打印机序列号 (15 位)
     char access_code[33];      // 打印机访问码 (8 位, 仅局域网模式)
+    uint8_t ui_style;          // UI 风格 (STYLE_BAMBU..STYLE_APPLE, 1-12)
+    uint8_t lang;              // 界面语言 (LANG_EN=1 / LANG_CN=2)
 } app_config_t;
 
 // 初始化 NVS 并加载配置 (NVS 无记录时回退到 config.h 编译期默认值)
