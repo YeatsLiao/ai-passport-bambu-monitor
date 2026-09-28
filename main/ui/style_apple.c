@@ -254,7 +254,11 @@ static void build_page0(void) {
             lv_obj_set_pos(s_row_lbl[row], SEP_INSET, row_y);
         }
 
-        s_row_val[row] = mk_lbl(list, "--", L_FONT_NUM, c->text_primary);
+        // 状态/剩余行的值含中文 ("已完成"、"1时23分"), 必须用本地化字体;
+        // 中文字体 ASCII 自动 fallback 到同字号 Montserrat, 纯数字行观感不变
+        const lv_font_t *val_font = (cmp == CMP_STATE || cmp == CMP_REMAIN)
+                                    ? L_FONT_TEXT : L_FONT_NUM;
+        s_row_val[row] = mk_lbl(list, "--", val_font, c->text_primary);
         mk_row_right(s_row_val[row], row_y);
 
         // 分隔线: 与文字左对齐内缩, 不顶到卡片右缘 (iOS 细节), 最后一行不画

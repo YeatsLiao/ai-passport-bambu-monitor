@@ -208,7 +208,10 @@ static void build_page0(void) {
             lv_obj_set_pos(s_row_lbl[row], 0, y + 8);   // +8 让 14pt 小字与右值光学对齐
         }
 
-        s_row_val[row] = mk_lbl(card, "--", L_FONT_NUM, c->text_primary);
+        // 状态/剩余行的值含中文 ("已完成"、"1时23分"), 必须用本地化字体
+        const lv_font_t *val_font = (cmp == CMP_STATE || cmp == CMP_REMAIN)
+                                    ? L_FONT_TEXT : L_FONT_NUM;
+        s_row_val[row] = mk_lbl(card, "--", val_font, c->text_primary);
         mk_row_right(s_row_val[row], y + 8);
 
         // 发丝线分隔 (下一行不存在时不再画, 避免悬空线头)
