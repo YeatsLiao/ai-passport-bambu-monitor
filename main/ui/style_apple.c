@@ -130,28 +130,6 @@ static void mk_section(lv_obj_t *p, const char *t, lv_coord_t x, lv_coord_t y) {
     if (l) lv_obj_set_pos(l, x, y);
 }
 
-// 透明度动画执行回调 (lv_anim exec cb 只接受 (var, int32_t) 签名)
-static void opa_anim_cb(void *var, int32_t v) {
-    lv_obj_set_style_opa((lv_obj_t *)var, (lv_opa_t)v, 0);
-}
-
-// 入场动画: 淡入 + 12px 上移, 220ms ease-out
-// (Apple: 临界阻尼无回弹; 从 opacity 0 + 微位移出现, 入场起步快)
-static void anim_enter(lv_obj_t *card) {
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, card);
-    lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)lv_obj_set_y);
-    lv_anim_set_values(&a, CARD_Y + 12, CARD_Y);
-    lv_anim_set_duration(&a, 220);
-    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-    lv_anim_start(&a);
-
-    lv_anim_set_exec_cb(&a, opa_anim_cb);
-    lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
-    lv_anim_start(&a);
-}
-
 // iOS 圆角细进度条 (轨道 systemGray5, 填充随语义色)
 static lv_obj_t *mk_round_bar(lv_obj_t *p, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_coord_t h) {
     if (!p) return NULL;
@@ -573,7 +551,9 @@ void style_apple_update(void) {
 }
 
 // ---------------------------------------------------------------------------
-// 翻页 (显示/隐藏切换 + 入场动画, 不 destroy/rebuild)
+// 翻页 (显示/隐藏切换, 不 destroy/rebuild)
+// iOS 同源的 tab 切换就是瞬时换内容: 不做整卡淡入+位移——那样每帧半透明混合
+// 整棵子树, 在 SPI 屏上帧率不足, 每次翻页反而抖成"果冻" (实机反馈)
 // ---------------------------------------------------------------------------
 int style_apple_page_count(void) { return s_total_pages; }
 int style_apple_current_page(void) { return s_page; }
@@ -583,7 +563,7 @@ static void show_page(int page) {
         if (!s_card[i]) continue;
         if (i == page) {
             lv_obj_clear_flag(s_card[i], LV_OBJ_FLAG_HIDDEN);
-            anim_enter(s_card[i]);
+            lv_obj_set_style_opa(s_card[i], LV_OPA_COVER, 0);   // 瞬时到位, 无入场动画
         } else {
             lv_obj_add_flag(s_card[i], LV_OBJ_FLAG_HIDDEN);
         }
