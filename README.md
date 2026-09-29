@@ -1,17 +1,8 @@
 # 拓竹打印机监控器 · ai-passport-bambu-monitor
 
-<table>
-  <tr>
-    <td align="center" width="34%"><img src="docs/img/cover_photo.jpg" width="250" alt="封面" /></td>
-    <td align="center" width="33%"><img src="docs/img/device_ssd_page0.jpg" width="220" alt="第 1 页 · 打印状态" /></td>
-    <td align="center" width="33%"><img src="docs/img/device_ssd_page1.jpg" width="220" alt="第 2 页 · AMS 料仓" /></td>
-  </tr>
-  <tr>
-    <td align="center">社区封面</td>
-    <td align="center">第 1 页 · 打印状态</td>
-    <td align="center">第 2 页 · AMS 料仓</td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/img/cover_photo.jpg" width="520" alt="拓竹打印机监控器封面" />
+</p>
 
 基于 [FoloToy AI Passport](https://github.com/FoloToy/ai-passport) 的拓竹打印机监控器：局域网直连打印机，打印进度、温度、层数、剩余时间与 AMS 料仓余量实时上屏——挂在包上或放在桌上，不用守在打印机前。
 
@@ -98,18 +89,9 @@ MIT License
 
 # Bambu Lab Printer Monitor (English)
 
-<table>
-  <tr>
-    <td align="center" width="34%"><img src="docs/img/cover_photo.jpg" width="250" alt="Cover" /></td>
-    <td align="center" width="33%"><img src="docs/img/device_ssd_page0.jpg" width="220" alt="Page 1 · Print status" /></td>
-    <td align="center" width="33%"><img src="docs/img/device_ssd_page1.jpg" width="220" alt="Page 2 · AMS" /></td>
-  </tr>
-  <tr>
-    <td align="center">Community cover</td>
-    <td align="center">Page 1 · Print status</td>
-    <td align="center">Page 2 · AMS</td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/img/cover_photo.jpg" width="520" alt="Bambu Monitor cover" />
+</p>
 
 A Bambu Lab printer monitor built on [FoloToy AI Passport](https://github.com/FoloToy/ai-passport): connects over LAN and shows print progress, temperatures, layer, remaining time and AMS filament levels in real time — glance at your desk instead of babysitting the printer.
 
