@@ -35,6 +35,8 @@ static const char *TAG = "main";
 
 static volatile bool s_ui_ready = false;   // LVGL 就绪前丢弃按键, 防止误锁未初始化的 port 层
 static volatile bool s_prov_mode = false;  // 配网模式中 (重启生效, 无退出)
+static volatile bool s_screen_off = false; // 熄屏中 (任意按键唤醒, 该次按键不产生其他效果)
+static int64_t s_last_key_us = 0;          // 上次按键时刻 (esp_timer 微秒)
 
 // 进入配网模式: 拆除监控连接 → 开热点+网页 → 屏上显示指引。
 // 网络操作放 worker 任务, 不阻塞按键回调; 保存配置后设备自动重启。
@@ -70,6 +72,19 @@ static void enter_prov_mode(void) {
 static void on_key(bsp_btn_t btn, bsp_btn_ev_t ev, void *user) {
     (void)user;
     if (!s_ui_ready) return;   // MQTT/TLS 握手窗口内 ADC 抖动可能产生误按键
+
+    s_last_key_us = esp_timer_get_time();
+
+    // 熄屏中: 任意按键只负责唤醒并吞掉本次事件 (含长按 OK), 防止误触发翻页/配网
+    if (s_screen_off) {
+        s_screen_off = false;
+        if (bsp_lvgl_lock(500)) {
+            bsp_display_wake();
+            bsp_lvgl_unlock();
+        }
+        ESP_LOGI(TAG, "按键唤醒屏幕");
+        return;
+    }
 
     // 长按 OK: 任何时刻都进入配网模式 (重新配置 WiFi/打印机)
     // 用户主动长按 = 明确意图，无需先断开才允许触发
@@ -176,7 +191,21 @@ void app_main(void) {
     ESP_LOGI(TAG, "启动完成 堆=%lu", esp_get_free_heap_size());
 
     // 主循环（保持运行，LVGL 在内部任务中刷新）
+    s_last_key_us = esp_timer_get_time();
     while (1) {
+#if CFG_SCREEN_OFF_MINUTES > 0
+        // 空闲超时自动熄屏 (任意按键唤醒, 见 on_key)
+        if (s_ui_ready && !s_screen_off &&
+            esp_timer_get_time() - s_last_key_us >
+                (int64_t)CFG_SCREEN_OFF_MINUTES * 60 * 1000000) {
+            if (bsp_lvgl_lock(500)) {
+                bsp_display_sleep();
+                bsp_lvgl_unlock();
+                s_screen_off = true;
+                ESP_LOGI(TAG, "空闲 %d 分钟, 熄屏", CFG_SCREEN_OFF_MINUTES);
+            }
+        }
+#endif
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }

@@ -119,11 +119,29 @@ esp_err_t bsp_display_init(void) {
 esp_lcd_panel_handle_t bsp_display_panel(void) { return s_panel; }
 esp_lcd_panel_io_handle_t bsp_display_io(void) { return s_io; }
 
-void bsp_display_backlight(uint8_t percent) {
+static uint8_t s_bl_percent = 0;   // 当前背光百分比 (熄屏不改它, 唤醒时恢复)
+
+static void bl_set_duty(uint8_t percent) {
     if (!s_bl_ready) return;
     if (percent > 100) percent = 100;
     uint32_t max_duty = (1u << BSP_BL_LEDC_RES) - 1u;
     uint32_t duty = (max_duty * percent) / 100u;
     ledc_set_duty(BSP_BL_LEDC_MODE, BSP_BL_LEDC_CHANNEL, duty);
     ledc_update_duty(BSP_BL_LEDC_MODE, BSP_BL_LEDC_CHANNEL);
+}
+
+void bsp_display_backlight(uint8_t percent) {
+    if (percent > 100) percent = 100;
+    s_bl_percent = percent;
+    bl_set_duty(percent);
+}
+
+void bsp_display_sleep(void) {
+    if (s_panel) esp_lcd_panel_disp_on_off(s_panel, false);
+    bl_set_duty(0);
+}
+
+void bsp_display_wake(void) {
+    if (s_panel) esp_lcd_panel_disp_on_off(s_panel, true);
+    bl_set_duty(s_bl_percent);
 }
