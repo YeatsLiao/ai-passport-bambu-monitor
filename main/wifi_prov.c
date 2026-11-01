@@ -17,6 +17,7 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "mqtt_client.h"
 #include "lwip/sockets.h"
 #include "dns_server.h"
 #include "freertos/FreeRTOS.h"
@@ -30,6 +31,12 @@
 #define AP_SSID_PREFIX  "Passport-"
 #define AP_MAX_CONN     4
 
+// 打印机 LAN MQTT 固定端口 (与 config.h 的 CFG_MQTT_PORT 保持一致;
+// 此处独立定义, 配网层不依赖编译期 config.h)
+#define PROV_MQTT_PORT  8883
+
+static const char *TAG = "wifi_prov";
+
 // WiFi 扫描事件 (api_scan 用): 非阻塞扫描后等 SCAN_DONE, 超时兜底防挂死
 #define SCAN_DONE_BIT   BIT0
 static EventGroupHandle_t s_scan_events;
@@ -39,14 +46,131 @@ static void scan_done_handler(void *arg, esp_event_base_t base,
     if (s_scan_events) xEventGroupSetBits(s_scan_events, SCAN_DONE_BIT);
 }
 
+// ---------------------------------------------------------------------------
+// 配置验证: 保存前实连一遍 WiFi 和打印机, 结果反馈到配网页
+// ---------------------------------------------------------------------------
+// WiFi 验证结果 (事件回调填充)
+static volatile struct {
+    bool got_ip;
+    bool disconnected;
+    int  reason;      // WIFI_REASON_*
+} s_wifi_verify;
+
+static void prov_wifi_event(void *arg, esp_event_base_t base,
+                            int32_t id, void *data) {
+    if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+        s_wifi_verify.disconnected = true;
+        s_wifi_verify.reason = ((wifi_event_sta_disconnected_t *)data)->reason;
+    } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
+        s_wifi_verify.got_ip = true;
+    }
+}
+
+// 用待保存配置连 WiFi; NULL=成功, 否则返回给用户看的错误文案
+static const char *verify_wifi(const app_config_t *cfg, int timeout_ms) {
+    wifi_config_t sta = { 0 };
+    strncpy((char *)sta.sta.ssid, cfg->wifi_ssid, sizeof(sta.sta.ssid) - 1);
+    strncpy((char *)sta.sta.password, cfg->wifi_pass, sizeof(sta.sta.password) - 1);
+    esp_wifi_set_config(WIFI_IF_STA, &sta);
+
+    s_wifi_verify.got_ip = false;
+    s_wifi_verify.disconnected = false;
+    s_wifi_verify.reason = 0;
+    if (esp_wifi_connect() != ESP_OK) return "WiFi 连接请求失败，请重试";
+
+    for (int t = 0; t < timeout_ms / 100; t++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (s_wifi_verify.got_ip) return NULL;
+        if (s_wifi_verify.disconnected) {
+            switch (s_wifi_verify.reason) {
+                case WIFI_REASON_NO_AP_FOUND:
+                    return "找不到该 WiFi：名称有误、距离太远，或它是 5GHz 网络（本设备仅支持 2.4GHz）";
+                case WIFI_REASON_AUTH_EXPIRE:
+                case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+                case WIFI_REASON_ASSOC_FAIL:
+                case WIFI_REASON_HANDSHAKE_TIMEOUT:
+                    return "WiFi 密码可能错误";
+                default:
+                    ESP_LOGW(TAG, "WiFi 连接失败 reason=%d", s_wifi_verify.reason);
+                    return "WiFi 连接失败，请重试";
+            }
+        }
+    }
+    return "连接超时：WiFi 信号可能太弱";
+}
+
+// MQTT 验证结果 (事件回调填充)
+static volatile bool s_mq_ok;
+static volatile bool s_mq_fail;
+static volatile int  s_mq_refuse;   // CONNACK 拒绝码 (0=无), 用于区分访问码错误
+
+static void prov_mqtt_event(void *h, esp_event_base_t base,
+                            int32_t id, void *event_data) {
+    (void)h; (void)base; (void)id;
+    esp_mqtt_event_handle_t e = event_data;
+    switch (e->event_id) {
+        case MQTT_EVENT_CONNECTED: s_mq_ok = true; break;
+        case MQTT_EVENT_ERROR:
+            s_mq_fail = true;
+            if (e->error_handle &&
+                e->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED)
+                s_mq_refuse = e->error_handle->connect_return_code;
+            break;
+        default: break;
+    }
+}
+
+// 用待保存配置连打印机 MQTT (TLS + 访问码); NULL=成功, 否则错误文案
+static const char *verify_mqtt(const app_config_t *cfg, int timeout_ms) {
+    esp_mqtt_client_config_t m = {
+        .broker = {
+            .address = {
+                .hostname = cfg->printer_ip,
+                .port = PROV_MQTT_PORT,
+                .transport = MQTT_TRANSPORT_OVER_SSL,
+            },
+            .verification = { .skip_cert_common_name_check = true },
+        },
+        .credentials = {
+            .username = "bblp",
+            .client_id = "prov-verify",
+            .authentication = { .password = cfg->access_code },
+        },
+        // 验证只看 CONNECTED 事件不订阅报文, 小 buffer 省内存 (TLS 握手峰值 ~50KB)
+        .buffer = { .size = 1024, .out_size = 256 },
+        .network = { .disable_auto_reconnect = true, .timeout_ms = 8000 },
+    };
+
+    s_mq_ok = false; s_mq_fail = false; s_mq_refuse = 0;
+    esp_mqtt_client_handle_t c = esp_mqtt_client_init(&m);
+    if (!c) return "打印机连接失败：内存不足";
+    esp_mqtt_client_register_event(c, ESP_EVENT_ANY_ID, prov_mqtt_event, NULL);
+    esp_mqtt_client_start(c);
+
+    for (int t = 0; t < timeout_ms / 100; t++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (s_mq_ok) {
+            esp_mqtt_client_stop(c);
+            esp_mqtt_client_destroy(c);
+            return NULL;
+        }
+        if (s_mq_fail) break;
+    }
+    esp_mqtt_client_stop(c);    // 未连上时 stop 返回错误, 忽略
+    esp_mqtt_client_destroy(c);
+
+    if (s_mq_refuse == MQTT_CONNECTION_REFUSE_BAD_USERNAME ||
+        s_mq_refuse == MQTT_CONNECTION_REFUSE_NOT_AUTHORIZED)
+        return "打印机拒绝了访问码：请核对 8 位访问码（打印机 设置→网络）";
+    return "连不上打印机：请检查 IP 与访问码，确认打印机已开机且在 设置→网络 开启了「仅局域网模式」";
+}
+
 // 运行时显示偏好取值范围 (与 config.example.h 的 STYLE_*/LANG_* 一致,
 // 此处独立定义避免配网层依赖编译期 config.h)
 #define PROV_STYLE_MIN  1     // STYLE_BAMBU
 #define PROV_STYLE_MAX  12    // STYLE_APPLE
 #define PROV_LANG_EN    1     // LANG_EN
 #define PROV_LANG_CN    2     // LANG_CN
-
-static const char *TAG = "wifi_prov";
 
 static char s_ap_ssid[32] = AP_SSID_PREFIX;
 static bool s_prov_running = false;
@@ -181,6 +305,23 @@ static esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
     return ESP_OK;
 }
 
+// 保存结果响应: JS fetch (?api=1) 返回 JSON; 无 JS 的传统表单提交返回 HTML 页
+static esp_err_t save_fail_response(httpd_req_t *req, bool api_mode,
+                                    const char *stage, const char *err) {
+    if (api_mode) {
+        char jr[320];
+        snprintf(jr, sizeof(jr),
+                 "{\"ok\":false,\"stage\":\"%s\",\"err\":\"%s\"}", stage, err);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_send(req, jr, HTTPD_RESP_USE_STRLEN);
+    } else {
+        snprintf(s_page, sizeof(s_page), PAGE_ERR, err);
+        httpd_resp_set_type(req, "text/html");
+        httpd_resp_send(req, s_page, HTTPD_RESP_USE_STRLEN);
+    }
+    return ESP_OK;
+}
+
 static esp_err_t save_post(httpd_req_t *req) {
     char body[1024] = "";
     int len = req->content_len;
@@ -195,6 +336,11 @@ static esp_err_t save_post(httpd_req_t *req) {
     const app_config_t *old = app_config_get();
     app_config_t cfg;
     memset(&cfg, 0, sizeof(cfg));
+
+    // JS fetch 带 ?api=1: 返回 JSON; 传统表单提交返回 HTML 页 (无 JS 兜底)
+    char q[16] = "";
+    bool api_mode = httpd_req_get_url_query_str(req, q, sizeof(q)) == ESP_OK &&
+                    strstr(q, "api=1") != NULL;
 
     char val[80];
     form_field(body, "ssid", val, sizeof(val));
@@ -232,23 +378,41 @@ static esp_err_t save_post(httpd_req_t *req) {
     else if (!cfg.printer_serial[0]) err = "打印机序列号不能为空";
     else if (!cfg.access_code[0]) err = "访问码不能为空";
     if (err) {
-        snprintf(s_page, sizeof(s_page), PAGE_ERR, err);
-        httpd_resp_set_type(req, "text/html");
-        httpd_resp_send(req, s_page, HTTPD_RESP_USE_STRLEN);
-        return ESP_OK;
+        return save_fail_response(req, api_mode, "validate", err);
+    }
+
+    // force=1: 用户在验证失败后选择"仍要保存", 跳过验证直接入库重启
+    char fv[8] = "";
+    form_field(body, "force", fv, sizeof(fv));
+    bool force = (fv[0] == '1');
+
+    // ---- 保存前实连验证: WiFi → 打印机 MQTT, 结果反馈到页面 ----
+    const char *wifi_err = NULL, *mqtt_err = NULL;
+    if (!force) {
+        ESP_LOGI(TAG, "验证配置: WiFi \"%s\" → 打印机 %s ...", cfg.wifi_ssid, cfg.printer_ip);
+        wifi_err = verify_wifi(&cfg, 15000);
+        if (!wifi_err) mqtt_err = verify_mqtt(&cfg, 12000);
+        esp_wifi_disconnect();   // 释放 STA, 用户修改后可重试
+    }
+    if (wifi_err || mqtt_err) {
+        return save_fail_response(req, api_mode,
+                                  wifi_err ? "wifi" : "mqtt",
+                                  wifi_err ? wifi_err : mqtt_err);
     }
 
     esp_err_t ret = app_config_save(&cfg);
     if (ret != ESP_OK) {
-        snprintf(s_page, sizeof(s_page), PAGE_ERR, "写入存储失败");
-        httpd_resp_set_type(req, "text/html");
-        httpd_resp_send(req, s_page, HTTPD_RESP_USE_STRLEN);
-        return ESP_OK;
+        return save_fail_response(req, api_mode, "validate", "写入存储失败");
     }
 
-    ESP_LOGI(TAG, "配置已保存, 2 秒后重启");
-    httpd_resp_set_type(req, "text/html");
-    httpd_resp_send(req, PAGE_OK, HTTPD_RESP_USE_STRLEN);
+    ESP_LOGI(TAG, "配置已保存%s, 2 秒后重启", force ? "(跳过验证)" : " (验证通过)");
+    if (api_mode) {
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_send(req, "{\"ok\":true}", HTTPD_RESP_USE_STRLEN);
+    } else {
+        httpd_resp_set_type(req, "text/html");
+        httpd_resp_send(req, PAGE_OK, HTTPD_RESP_USE_STRLEN);
+    }
     schedule_restart();
     return ESP_OK;
 
@@ -441,14 +605,22 @@ static esp_err_t root_get(httpd_req_t *req) {
 ".omv button:active{background:#e9edf2}"
 ".odflt{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--label);font-weight:600;cursor:pointer}"
 ".odflt input{width:18px;height:18px;min-height:0;margin:0;padding:0;border:0;accent-color:var(--accent)}"
+".result{display:none;margin-top:18px;border-radius:12px;padding:14px 16px;font-size:14px;line-height:1.7}"
+".result.wait{display:block;background:#eef3ff;color:#2c4a9e}"
+".result.okr{display:block;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0}"
+".result.errr{display:block;background:#fef3f2;color:#b42318;border:1px solid #fecdca}"
+".rbtns{display:flex;gap:10px;margin-top:12px}"
+".rbtns button{flex:1;min-height:42px;margin:0;border-radius:10px;font-size:14px;font-weight:600;border:1.5px solid transparent;cursor:pointer;-webkit-appearance:none;appearance:none}"
+".fbtn{background:var(--accent);color:#fff}"
+".rbtn{background:#fff;color:var(--label);border-color:var(--field-line)}"
 "button.submit{width:100%%;min-height:50px;margin-top:28px;padding:14px;border:0;border-radius:14px;background:var(--accent);color:#fff;font-size:16px;font-weight:650;cursor:pointer;transition:filter .15s}"
 "button.submit:active{filter:brightness(.94)}"
 ".foot{max-width:430px;margin:16px auto 0;text-align:center;font-size:12.5px;color:var(--sub);line-height:1.6}</style>"
 "</head><body>"
 "<div class=\"card\">"
 "<div class=\"head\"><div class=\"logo\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"#2f6fed\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 9V4h12v5\"/><rect x=\"4\" y=\"9\" width=\"16\" height=\"7\" rx=\"1.6\"/><path d=\"M7 16h10v4H7z\"/></svg></div><div><h1>拓竹打印机监控器</h1>"
-"<p class=\"tip\">填写后点保存，设备自动重启并连接</p></div></div>"
-"<form method=\"POST\" action=\"/save\" onsubmit=\"buildOrder()\">"
+"<p class=\"tip\">保存前会自动验证 WiFi 和打印机连接，失败会提示原因</p></div></div>"
+"<form method=\"POST\" action=\"/save\" onsubmit=\"return submitForm(event)\">"
 "<div class=\"sec\">WIFI · 仅支持 2.4GHz</div>"
 "<label>WiFi 名称 <em>*</em></label>"
 "<div class=\"btnline\">"
@@ -475,6 +647,8 @@ static esp_err_t root_get(httpd_req_t *req) {
 "<div id=\"orderlist\" class=\"olist%s\">%s</div>"
 "<input type=\"hidden\" name=\"order\" id=\"orderfield\" value=\"\">"
 "<button type=\"submit\" class=\"submit\">保存并重启设备</button>"
+"<div id=\"result\" class=\"result\"></div>"
+"<input type=\"hidden\" name=\"force\" id=\"forcefield\" value=\"\">"
 "</form></div>"
 "<div class=\"foot\">配置仅保存在设备本地，不会上传任何服务器<br>此热点无互联网属正常现象，直接填写表单即可</div>"
 "<script>"
@@ -495,6 +669,36 @@ static esp_err_t root_get(httpd_req_t *req) {
 "function mvDn(b){var r=b.closest('.orow');var n=r.nextElementSibling;if(n)r.parentNode.insertBefore(n,r);}"
 "function toggleDefault(){var d=document.getElementById('usedefault');document.getElementById('orderlist').classList.toggle('off',d.checked);}"
 "function buildOrder(){var f=document.getElementById('orderfield');if(document.getElementById('usedefault').checked){f.value='';return;}var ps=[];var rs=document.querySelectorAll('#orderlist .orow');for(var i=0;i<rs.length;i++){var ck=rs[i].querySelector('.ochk');if(ck&&ck.checked)ps.push(rs[i].getAttribute('data-cmp'));}f.value=ps.join(',');}"
+"var submitting=false;"
+"function setBtn(t){var b=document.querySelector('button.submit');b.disabled=(t!=='保存并重启设备');b.textContent=t;}"
+"async function submitForm(ev){"
+"ev.preventDefault();"
+"if(submitting)return false;submitting=true;"
+"buildOrder();"
+"setBtn('正在验证并保存…');"
+"var p=document.getElementById('result');"
+"p.className='result wait';p.innerHTML='<b>正在验证…</b><br>先连你的 WiFi，再连打印机，约需 15~25 秒，请保持页面打开';"
+"try{"
+"var body=new URLSearchParams(new FormData(document.querySelector('form'))).toString();"
+"var r=await fetch('/save?api=1',{method:'POST',body:body,headers:{'Content-Type':'application/x-www-form-urlencoded'}});"
+"var j=await r.json();"
+"if(j.ok){"
+"p.className='result okr';p.innerHTML='<b>验证通过，配置已保存</b><br>设备正在重启并连接网络，稍后即可看到打印数据';"
+"}else if(j.stage==='mqtt'){"
+"p.className='result errr';p.innerHTML='<b>打印机连接失败</b><br>'+j.err+'<div class=\"rbtns\"><button type=\"button\" class=\"fbtn\" onclick=\"forceSave()\">仍要保存并重启</button><button type=\"button\" class=\"rbtn\" onclick=\"closeResult()\">返回修改</button></div>';"
+"setBtn('保存并重启设备');"
+"}else{"
+"p.className='result errr';p.innerHTML='<b>'+j.err+'</b>';"
+"setBtn('保存并重启设备');"
+"}"
+"}catch(e){"
+"p.className='result errr';p.innerHTML='<b>网络中断</b><br>验证期间连接到了新 WiFi 会短暂切换信道导致本页面掉线，直接重试即可';"
+"setBtn('保存并重启设备');"
+"}"
+"submitting=false;return false;"
+"}"
+"function forceSave(){document.getElementById('forcefield').value='1';document.querySelector('form').submit();}"
+"function closeResult(){var p=document.getElementById('result');p.className='result';p.innerHTML='';}"
 "</script>"
 "</body></html>",
         esc_ssid,
@@ -526,6 +730,9 @@ esp_err_t wifi_prov_start(void) {
     // 扫描事件: SCAN_DONE 回调置位, api_scan 等待 (带超时)
     s_scan_events = xEventGroupCreate();
     esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_SCAN_DONE, scan_done_handler, NULL);
+    // 保存前验证: WiFi 连接结果 (prov_wifi_event 填充 s_wifi_verify)
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, prov_wifi_event, NULL);
+    esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, prov_wifi_event, NULL);
 
     // AP + STA 双接口: 扫描 (esp_wifi_scan_start) 依赖 STA 接口,
     // 纯 AP 模式下扫描会失败或只能扫到本信道 —— 这是配网页时扫不出热点的主因
