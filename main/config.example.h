@@ -99,7 +99,7 @@
 // 6. 显示设置
 // ============================================================================
 #define CFG_BACKLIGHT_PERCENT   80
-#define CFG_SCREEN_OFF_MINUTES  5   // 空闲自动熄屏 (分钟), 任意按键唤醒; 0=关闭熄屏
+#define CFG_SCREEN_OFF_MINUTES  5   // 默认空闲熄屏分钟数, 0=关闭; 之后可在设备设置页调整 (NVS 保存)
 #define CFG_MQTT_BUFFER_SIZE    (16 * 1024)
 #define CFG_MQTT_RECONNECT_SEC  10
 #define CFG_STATUS_TIMEOUT_SEC  60

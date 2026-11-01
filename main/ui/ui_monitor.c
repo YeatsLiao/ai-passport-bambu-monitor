@@ -11,6 +11,7 @@
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
+#include "ui_settings.h"
 #include "../app_config.h"
 #include "../bambu_state.h"
 #include "../bambu_mqtt.h"
@@ -269,14 +270,23 @@ void ui_monitor_exit(void) {
 }
 
 void ui_monitor_key(bsp_btn_t btn, bsp_btn_ev_t ev) {
-    if (ev != BSP_BTN_CLICK) return;
+    // 设置页打开时按键全部交给它 (含 LONG OK 退出)
+    if (ui_settings_is_open()) {
+        ui_settings_key(btn, ev);
+        return;
+    }
+    if (ev != BSP_BTN_CLICK) return;   // 监控页长按无功能 (配网入口已移到设置页)
 
     switch (btn) {
         case BSP_BTN_UP:
             cur_style()->prev();
             break;
         case BSP_BTN_DOWN:
-            cur_style()->next();
+            // 最后一页再向下 → 打开设置页 (亮度/熄屏/重置网络)
+            if (cur_style()->cur_page() >= cur_style()->page_count() - 1)
+                ui_settings_open();
+            else
+                cur_style()->next();
             break;
         case BSP_BTN_OK:
             bambu_mqtt_pushall();

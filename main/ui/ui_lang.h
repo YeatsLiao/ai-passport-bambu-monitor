@@ -50,6 +50,13 @@ typedef enum {
     UI_STR_PROV_STEP1,
     UI_STR_PROV_STEP2,
     UI_STR_PROV_STEP3,
+    UI_STR_SETTINGS,
+    UI_STR_BRIGHTNESS,
+    UI_STR_SLEEP,
+    UI_STR_RESET_NET,
+    UI_STR_BACK,
+    UI_STR_OFF,
+    UI_STR_CONFIRM_RESET,
     UI_STR_COUNT
 } ui_str_id_t;
 
@@ -96,6 +103,13 @@ const lv_font_t *ui_lang_font_big(void);    // 20px 标题
 #define L_PROV_STEP1        ui_lang_str(UI_STR_PROV_STEP1)
 #define L_PROV_STEP2        ui_lang_str(UI_STR_PROV_STEP2)
 #define L_PROV_STEP3        ui_lang_str(UI_STR_PROV_STEP3)
+#define L_SETTINGS          ui_lang_str(UI_STR_SETTINGS)
+#define L_BRIGHTNESS        ui_lang_str(UI_STR_BRIGHTNESS)
+#define L_SLEEP             ui_lang_str(UI_STR_SLEEP)
+#define L_RESET_NET         ui_lang_str(UI_STR_RESET_NET)
+#define L_BACK              ui_lang_str(UI_STR_BACK)
+#define L_OFF               ui_lang_str(UI_STR_OFF)
+#define L_CONFIRM_RESET     ui_lang_str(UI_STR_CONFIRM_RESET)
 
 // 随语言切换的字体宏 (英文构建下即 Montserrat, 与旧行为一致)
 #define L_FONT_TEXT         ui_lang_font_text()

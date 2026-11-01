@@ -7,6 +7,7 @@ idf_component_register(
          "ui/ui_theme.c"
          "ui/ui_lang.c"
          "ui/ui_monitor.c"
+         "ui/ui_settings.c"
          "ui/fonts/lv_font_cn_14.c"
          "ui/fonts/lv_font_cn_20.c"
          "ui/style_bambu.c"

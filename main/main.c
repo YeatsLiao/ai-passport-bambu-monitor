@@ -19,6 +19,7 @@
 #include "app_config.h"
 #include "wifi_prov.h"
 #include "ui/ui_monitor.h"
+#include "ui/ui_settings.h"
 #include "ui/ui_theme.h"
 
 #include "lvgl.h"
@@ -86,13 +87,9 @@ static void on_key(bsp_btn_t btn, bsp_btn_ev_t ev, void *user) {
         return;
     }
 
-    // 长按 OK: 任何时刻都进入配网模式 (重新配置 WiFi/打印机)
-    // 用户主动长按 = 明确意图，无需先断开才允许触发
-    if (btn == BSP_BTN_OK && ev == BSP_BTN_LONG) {
-        enter_prov_mode();
-        return;
-    }
-    if (s_prov_mode) return;   // 配网模式下不再翻页/刷新
+    // 配网入口在设置页 → "重置网络" (监控最后一页按↓进入设置页);
+    // 配网模式下不再翻页/刷新
+    if (s_prov_mode) return;
 
     if (!bsp_lvgl_lock(500)) return;
     ui_monitor_key(btn, ev);
@@ -116,13 +113,19 @@ void app_main(void) {
         ESP_LOGE(TAG, "显示初始化失败");
         return;
     }
-    bsp_display_backlight(CFG_BACKLIGHT_PERCENT);
+    {
+        uint8_t bl = app_config_get()->backlight;   // 设置页调整过的值 (NVS)
+        if (bl < 10 || bl > 100) bl = CFG_BACKLIGHT_PERCENT;
+        bsp_display_backlight(bl);
+    }
     ESP_LOGI(TAG, "显示硬件就绪");
 
     // 3. 初始化按键
     if (bsp_button_init(on_key, NULL) != ESP_OK) {
         ESP_LOGE(TAG, "按键初始化失败");
     }
+    // 设置页"重置网络" → 进入配网模式 (原"长按 OK"入口已移除)
+    ui_settings_set_prov_cb(enter_prov_mode);
 
     // 3.5 初始化电池（可选，无电量计时会静默跳过）
     if (bsp_battery_init() != ESP_OK) {
@@ -193,19 +196,18 @@ void app_main(void) {
     // 主循环（保持运行，LVGL 在内部任务中刷新）
     s_last_key_us = esp_timer_get_time();
     while (1) {
-#if CFG_SCREEN_OFF_MINUTES > 0
-        // 空闲超时自动熄屏 (任意按键唤醒, 见 on_key)
-        if (s_ui_ready && !s_screen_off &&
+        // 空闲超时自动熄屏 (任意按键唤醒, 见 on_key); 分钟数在设置页可调, 0=关闭
+        uint8_t soff = app_config_get()->screen_off_min;
+        if (soff > 0 && s_ui_ready && !s_screen_off &&
             esp_timer_get_time() - s_last_key_us >
-                (int64_t)CFG_SCREEN_OFF_MINUTES * 60 * 1000000) {
+                (int64_t)soff * 60 * 1000000) {
             if (bsp_lvgl_lock(500)) {
                 bsp_display_sleep();
                 bsp_lvgl_unlock();
                 s_screen_off = true;
-                ESP_LOGI(TAG, "空闲 %d 分钟, 熄屏", CFG_SCREEN_OFF_MINUTES);
+                ESP_LOGI(TAG, "空闲 %d 分钟, 熄屏", soff);
             }
         }
-#endif
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }

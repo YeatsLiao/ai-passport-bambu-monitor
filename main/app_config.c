@@ -24,6 +24,12 @@ static const char *TAG = "app_config";
 #define KEY_STYLE  "style"
 #define KEY_LANG   "lang"
 #define KEY_CORDER "corder"
+#define KEY_BL     "bl"       // 背光亮度 %
+#define KEY_SOFF   "soff"     // 自动熄屏分钟数, 0=关
+
+#define BL_MIN     10         // 背光下限: 再低会看不清, 防止用户把自己"拉黑"
+#define BL_MAX     100
+#define SOFF_MAX   60         // 熄屏上限 (分钟)
 
 #define STYLE_MIN  1      // STYLE_BAMBU
 #define STYLE_MAX  12     // STYLE_APPLE
@@ -68,7 +74,43 @@ static bool compile_cfg_valid(void) {
     return CFG_WIFI_SSID[0] != '\0' && strcmp(CFG_WIFI_SSID, "YOUR_WIFI_SSID") != 0;
 }
 
-// 显示偏好 (风格/语言/组件顺序) 独立于网络配网状态: 只要 NVS 有合法值就采用
+// 保存显示偏好字段 (风格/语言/亮度/熄屏/组件顺序) 到已打开的 NVS
+static esp_err_t save_display_keys(nvs_handle_t h, const app_config_t *cfg) {
+    esp_err_t ret = nvs_set_u8(h, KEY_STYLE, cfg->ui_style);
+    if (ret == ESP_OK) ret = nvs_set_u8(h, KEY_LANG, cfg->lang);
+    if (ret == ESP_OK) ret = nvs_set_u8(h, KEY_BL, cfg->backlight);
+    if (ret == ESP_OK) ret = nvs_set_u8(h, KEY_SOFF, cfg->screen_off_min);
+    char corder_csv[32];
+    serialize_comp_csv(cfg, corder_csv, sizeof(corder_csv));
+    if (ret == ESP_OK) ret = nvs_set_str(h, KEY_CORDER, corder_csv);
+    return ret;
+}
+
+// 只保存显示偏好: 设备设置页调亮度/熄屏用, 未配网状态也允许
+esp_err_t app_config_save_display(const app_config_t *cfg) {
+    if (!cfg) return ESP_ERR_INVALID_ARG;
+
+    nvs_handle_t h;
+    esp_err_t ret = nvs_open(CFG_NS, NVS_READWRITE, &h);
+    if (ret != ESP_OK) return ret;
+    ret = save_display_keys(h, cfg);
+    if (ret == ESP_OK) ret = nvs_commit(h);
+    nvs_close(h);
+
+    if (ret != ESP_OK) ESP_LOGE(TAG, "显示配置保存失败: %s", esp_err_to_name(ret));
+    return ret;
+}
+
+esp_err_t app_config_set_display(uint8_t backlight, uint8_t screen_off_min) {
+    if (backlight < BL_MIN) backlight = BL_MIN;
+    if (backlight > BL_MAX) backlight = BL_MAX;
+    if (screen_off_min > SOFF_MAX) screen_off_min = SOFF_MAX;
+    s_cfg.backlight = backlight;
+    s_cfg.screen_off_min = screen_off_min;
+    return app_config_save_display(&s_cfg);
+}
+
+// 从已打开的 NVS 读显示偏好 (风格/语言/亮度/熄屏/组件顺序)
 static void load_display_prefs(nvs_handle_t h) {
     uint8_t v;
     if (nvs_get_u8(h, KEY_STYLE, &v) == ESP_OK && v >= STYLE_MIN && v <= STYLE_MAX) {
@@ -76,6 +118,12 @@ static void load_display_prefs(nvs_handle_t h) {
     }
     if (nvs_get_u8(h, KEY_LANG, &v) == ESP_OK && (v == LANG_EN || v == LANG_CN)) {
         s_cfg.lang = v;
+    }
+    if (nvs_get_u8(h, KEY_BL, &v) == ESP_OK && v >= BL_MIN && v <= BL_MAX) {
+        s_cfg.backlight = v;
+    }
+    if (nvs_get_u8(h, KEY_SOFF, &v) == ESP_OK && v <= SOFF_MAX) {
+        s_cfg.screen_off_min = v;
     }
     // 组件顺序: key 存在则解析 (空串表示用户显式选择“走风格默认”= count 0);
     // key 不存在则保留编译期 CFG_COMPONENT_ORDER 种子。
@@ -91,6 +139,8 @@ esp_err_t app_config_init(void) {
     // 显示默认值: 编译期 config.h (NVS 有记录时被覆盖)
     s_cfg.ui_style = CFG_UI_STYLE;
     s_cfg.lang     = CFG_LANG;
+    s_cfg.backlight = CFG_BACKLIGHT_PERCENT;
+    s_cfg.screen_off_min = CFG_SCREEN_OFF_MINUTES;
     // 组件顺序编译期默认 (向后兼容 CFG_COMPONENT_ORDER); NVS 无 key 时保留
 #ifdef CFG_COMPONENT_ORDER
     {
@@ -133,14 +183,17 @@ esp_err_t app_config_init(void) {
         nvs_close(h);
         s_provisioned = ok && s_cfg.wifi_ssid[0] != '\0';
         if (!s_provisioned) {
-            // 网络配置不完整: 清回默认, 但保留已读到的显示偏好 (风格/语言/组件顺序)
+            // 网络配置不完整: 清回默认, 但保留已读到的显示偏好 (风格/语言/亮度/熄屏/组件顺序)
             uint8_t keep_style = s_cfg.ui_style, keep_lang = s_cfg.lang;
+            uint8_t keep_bl = s_cfg.backlight, keep_soff = s_cfg.screen_off_min;
             uint8_t keep_corder[APP_COMP_MAX]; uint8_t keep_count = s_cfg.comp_count;
             memcpy(keep_corder, s_cfg.comp_order, sizeof(keep_corder));
             memset(&s_cfg, 0, sizeof(s_cfg));
             s_cfg.ui_style = keep_style;
             s_cfg.lang     = keep_lang;
-            memcpy(s_cfg.comp_order, keep_corder, sizeof(s_cfg.comp_order));
+            s_cfg.backlight = keep_bl;
+            s_cfg.screen_off_min = keep_soff;
+            memcpy(s_cfg.comp_order, keep_corder, sizeof(keep_corder));
             s_cfg.comp_count = keep_count;
         }
     }
@@ -201,11 +254,7 @@ esp_err_t app_config_save(const app_config_t *cfg) {
     if (ret == ESP_OK) ret = nvs_set_str(h, KEY_IP, cfg->printer_ip);
     if (ret == ESP_OK) ret = nvs_set_str(h, KEY_SERIAL, cfg->printer_serial);
     if (ret == ESP_OK) ret = nvs_set_str(h, KEY_CODE, cfg->access_code);
-    if (ret == ESP_OK) ret = nvs_set_u8(h, KEY_STYLE, cfg->ui_style);
-    if (ret == ESP_OK) ret = nvs_set_u8(h, KEY_LANG, cfg->lang);
-    char corder_csv[32];
-    serialize_comp_csv(cfg, corder_csv, sizeof(corder_csv));
-    if (ret == ESP_OK) ret = nvs_set_str(h, KEY_CORDER, corder_csv);
+    if (ret == ESP_OK) ret = save_display_keys(h, cfg);
     if (ret == ESP_OK) ret = nvs_commit(h);
     nvs_close(h);
 

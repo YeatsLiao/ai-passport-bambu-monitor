@@ -20,6 +20,8 @@ typedef struct {
     char access_code[33];      // 打印机访问码 (8 位, 仅局域网模式)
     uint8_t ui_style;          // UI 风格 (STYLE_BAMBU..STYLE_APPLE, 1-12)
     uint8_t lang;              // 界面语言 (LANG_EN=1 / LANG_CN=2)
+    uint8_t backlight;         // 背光亮度 10-100 (%), 设备设置页可调
+    uint8_t screen_off_min;    // 空闲自动熄屏分钟数, 0=关闭; 设备设置页可调
     uint8_t comp_order[APP_COMP_MAX];  // 有序组件子集 (值 1-9), 前 comp_count 个有效
     uint8_t comp_count;                // 0 = 未配置, 各风格使用自身默认顺序
 } app_config_t;
@@ -33,8 +35,15 @@ const app_config_t *app_config_get(void);
 // NVS 中是否已保存过配置 (决定开机是否直接进配网模式)
 bool app_config_is_provisioned(void);
 
-// 保存配置到 NVS (整体覆盖)
+// 保存配置到 NVS (整体覆盖, 要求网络配置完整)
 esp_err_t app_config_save(const app_config_t *cfg);
+
+// 只保存显示偏好 (风格/语言/亮度/熄屏/组件顺序), 不要求网络配置完整 ——
+// 设备设置页调整亮度/熄屏时使用, 未配网状态也允许调
+esp_err_t app_config_save_display(const app_config_t *cfg);
+
+// 设备设置页调亮度/熄屏: 更新运行时单例并写入 NVS (背光 10-100, 熄屏 0-60 分钟, 0=关)
+esp_err_t app_config_set_display(uint8_t backlight, uint8_t screen_off_min);
 
 // 读取运行时组件顺序: 把已配置的有序子集写入 out (最多 max 个), 返回写入个数;
 // 未配置 (comp_count==0) 时返回 0, 调用方应回落到本风格默认顺序。
