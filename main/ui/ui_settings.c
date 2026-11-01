@@ -32,7 +32,9 @@ static const uint8_t k_sleep_preset[] = {0, 1, 3, 5, 10, 30};
 static bool     s_open = false;
 static lv_obj_t *s_panel = NULL;
 static lv_obj_t *s_row_obj[ROW_COUNT];
+static lv_obj_t *s_name_lbl[ROW_COUNT];
 static lv_obj_t *s_val_lbl[ROW_COUNT];
+static const char *s_names[ROW_COUNT];   // 行名 (open 时缓存 L_* 指针)
 static int      s_row = 0;          // 当前选中行
 static bool     s_edit = false;     // 编辑模式 (亮度/熄屏)
 static bool     s_reset_armed = false;  // 重置网络两步确认
@@ -57,6 +59,16 @@ static void draw_row(int i) {
     lv_obj_set_style_bg_color(s_row_obj[i], lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_bg_opa(s_row_obj[i], sel ? LV_OPA_COVER : LV_OPA_70, 0);
 
+    // 行名: 重置网络确认态时换成警告色提示 (提示较长, 放值列会和行名挤在一起)
+    lv_obj_t *name = s_name_lbl[i];
+    if (i == ROW_RESET && s_reset_armed) {
+        lv_label_set_text(name, L_CONFIRM_RESET);
+        lv_obj_set_style_text_color(name, lv_color_hex(c->warning), 0);
+    } else {
+        lv_label_set_text(name, s_names[i]);
+        lv_obj_set_style_text_color(name, lv_color_hex(c->text_primary), 0);
+    }
+
     lv_obj_t *val = s_val_lbl[i];
     switch (i) {
         case ROW_BRIGHT:
@@ -80,19 +92,13 @@ static void draw_row(int i) {
             break;
         }
         case ROW_RESET:
-            lv_label_set_text(val, s_reset_armed ? L_CONFIRM_RESET : LV_SYMBOL_RIGHT " ");
-            break;
         case ROW_BACK:
-            lv_label_set_text(val, LV_SYMBOL_RIGHT " ");
+            lv_label_set_text(val, LV_SYMBOL_RIGHT);
             break;
     }
-    // 编辑中的值用强调色, 重置确认提示用警告色
-    if (i == ROW_RESET && s_reset_armed)
-        lv_obj_set_style_text_color(val, lv_color_hex(c->warning), 0);
-    else if (sel && s_edit)
-        lv_obj_set_style_text_color(val, lv_color_hex(c->accent), 0);
-    else
-        lv_obj_set_style_text_color(val, lv_color_hex(c->text_secondary), 0);
+    // 编辑中的值用强调色提示可调
+    lv_obj_set_style_text_color(val,
+        (sel && s_edit) ? lv_color_hex(c->accent) : lv_color_hex(c->text_secondary), 0);
 }
 
 static void draw_all(void) {
@@ -142,6 +148,7 @@ void ui_settings_open(void) {
     // 四行卡片
     const char *row_name[ROW_COUNT] = {L_BRIGHTNESS, L_SLEEP, L_RESET_NET, L_BACK};
     for (int i = 0; i < ROW_COUNT; i++) {
+        s_names[i] = row_name[i];
         lv_obj_t *r = lv_obj_create(s_panel);
         if (!r) break;
         s_row_obj[i] = r;
@@ -152,6 +159,7 @@ void ui_settings_open(void) {
 
         lv_obj_t *name = lv_label_create(r);
         if (name) {
+            s_name_lbl[i] = name;
             lv_label_set_text(name, row_name[i]);
             lv_obj_set_style_text_font(name, L_FONT_TEXT, 0);
             lv_obj_set_style_text_color(name, lv_color_hex(c->text_primary), 0);
@@ -167,11 +175,11 @@ void ui_settings_open(void) {
         }
     }
 
-    // 底部操作提示
+    // 底部操作提示 (短文案, 240px 宽度内留足余量)
     lv_obj_t *hint = lv_label_create(s_panel);
     if (hint) {
         lv_label_set_text(hint,
-            LV_SYMBOL_OK " 选择/保存   " LV_SYMBOL_UP LV_SYMBOL_DOWN " 调整/选择");
+            LV_SYMBOL_OK " 确认  " LV_SYMBOL_UP LV_SYMBOL_DOWN " 选择/调整");
         lv_obj_set_style_text_font(hint, L_FONT_TEXT, 0);
         lv_obj_set_style_text_color(hint, lv_color_hex(c->text_secondary), 0);
         lv_obj_align(hint, LV_ALIGN_BOTTOM_MID, 0, -10);
@@ -188,7 +196,7 @@ static void close_settings(void) {
         lv_obj_delete(s_panel);
         s_panel = NULL;
     }
-    for (int i = 0; i < ROW_COUNT; i++) { s_row_obj[i] = NULL; s_val_lbl[i] = NULL; }
+    for (int i = 0; i < ROW_COUNT; i++) { s_row_obj[i] = NULL; s_name_lbl[i] = NULL; s_val_lbl[i] = NULL; }
     s_open = false;
     s_edit = false;
     s_reset_armed = false;
