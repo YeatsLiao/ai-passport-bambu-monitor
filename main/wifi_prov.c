@@ -21,6 +21,7 @@
 #include "dns_server.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/event_groups.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -28,6 +29,15 @@
 
 #define AP_SSID_PREFIX  "Passport-"
 #define AP_MAX_CONN     4
+
+// WiFi 扫描事件 (api_scan 用): 非阻塞扫描后等 SCAN_DONE, 超时兜底防挂死
+#define SCAN_DONE_BIT   BIT0
+static EventGroupHandle_t s_scan_events;
+
+static void scan_done_handler(void *arg, esp_event_base_t base,
+                              int32_t id, void *data) {
+    if (s_scan_events) xEventGroupSetBits(s_scan_events, SCAN_DONE_BIT);
+}
 
 // 运行时显示偏好取值范围 (与 config.example.h 的 STYLE_*/LANG_* 一致,
 // 此处独立定义避免配网层依赖编译期 config.h)
@@ -249,16 +259,41 @@ bad_request:
 
 // ---------------------------------------------------------------------------
 // WiFi 扫描接口 (GET /api/scan)
-// SoftAP 模式下同步扫描周围网络, 返回 JSON. 用户可从列表选择, 防止手输 SSID 错误.
-// 扫描占用 1-3 秒, 此时 httpd 任务阻塞 — 对配网页场景完全可以接受.
+// SoftAP 共存 (APSTA) 下扫描周围网络, 返回 JSON. 用户可从列表选择, 防止手输 SSID 错误.
+// 扫描本身要 1-3 秒; 非阻塞 + 事件等待 + 超时, 重复点击或扫描未结束时自动重试.
 // ---------------------------------------------------------------------------
 static esp_err_t api_scan(httpd_req_t *req) {
     static wifi_ap_record_t recs[12];
     static char json[1024];
 
-    wifi_scan_config_t sc = { .show_hidden = false };
-    if (esp_wifi_scan_start(&sc, true /* 阻塞直到扫描完成 */) != ESP_OK) {
+    // SoftAP 共存时每信道多留驻留时间, 提高弱信号/慢应答 AP 的命中率
+    wifi_scan_config_t sc = {
+        .show_hidden = false,
+        .scan_time = { .active = { .min = 100, .max = 300 } },
+    };
+
+    bool ok = false;
+    if (!s_scan_events) {   // 事件组创建失败 (内存耗尽): 返回空列表, 避免崩溃
         httpd_resp_set_type(req, "application/json");
+        httpd_resp_send(req, "[]", HTTPD_RESP_USE_STRLEN);
+        return ESP_OK;
+    }
+    for (int tries = 0; tries < 3 && !ok; tries++) {
+        if (esp_wifi_scan_start(&sc, false) == ESP_OK) {
+            // 10s 超时兜底: 阻塞式扫描丢 SCAN_DONE 事件会永久挂死 httpd 任务
+            EventBits_t bits = xEventGroupWaitBits(s_scan_events, SCAN_DONE_BIT,
+                                                   pdTRUE, pdFALSE,
+                                                   pdMS_TO_TICKS(10000));
+            ok = (bits & SCAN_DONE_BIT) != 0;
+            if (!ok) ESP_LOGW(TAG, "扫描超时 (第 %d 次)", tries + 1);
+        } else {
+            // 上次扫描未结束 / radio 忙: 稍候重试
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    if (!ok) {
         httpd_resp_send(req, "[]", HTTPD_RESP_USE_STRLEN);
         return ESP_OK;
     }
@@ -488,7 +523,14 @@ esp_err_t wifi_prov_start(void) {
     esp_netif_init();
     esp_event_loop_create_default();
 
+    // 扫描事件: SCAN_DONE 回调置位, api_scan 等待 (带超时)
+    s_scan_events = xEventGroupCreate();
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_SCAN_DONE, scan_done_handler, NULL);
+
+    // AP + STA 双接口: 扫描 (esp_wifi_scan_start) 依赖 STA 接口,
+    // 纯 AP 模式下扫描会失败或只能扫到本信道 —— 这是配网页时扫不出热点的主因
     esp_netif_create_default_wifi_ap();
+    esp_netif_create_default_wifi_sta();
 
     wifi_init_config_t wcfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_err_t ret = esp_wifi_init(&wcfg);
@@ -510,7 +552,8 @@ esp_err_t wifi_prov_start(void) {
     ap_cfg.ap.max_connection = AP_MAX_CONN;
     ap_cfg.ap.authmode = WIFI_AUTH_OPEN;   // 开放网络, 方便手机自动弹配网页
 
-    ret = esp_wifi_set_mode(WIFI_MODE_AP);
+    // APSTA: STA 不配凭证保持空闲, 只为扫描提供接口; 热点功能不受影响
+    ret = esp_wifi_set_mode(WIFI_MODE_APSTA);
     ret |= esp_wifi_set_config(WIFI_IF_AP, &ap_cfg);
     ret |= esp_wifi_start();
     if (ret != ESP_OK) {
