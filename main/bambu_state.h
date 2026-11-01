@@ -35,7 +35,7 @@ typedef struct {
     float nozzle_target;
     float bed_temp;
     float bed_target;
-    float chamber_temp;     // X1 系列才有
+    float chamber_temp;     // X1 顶层 chamber_temper; X2D/H2D 在 device.ctc.info.temp; P1/A1 无传感器恒 0
 
     // 进度
     int   layer_num;

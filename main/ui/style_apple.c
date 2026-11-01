@@ -476,7 +476,9 @@ void style_apple_update(void) {
                              (int)st->bed_temp, (int)st->bed_target);
                     lv_label_set_text(val, buf); break;
                 case CMP_CHAMBER:
-                    snprintf(buf, sizeof(buf), "%d°C", (int)st->chamber_temp);
+                    // 无腔体传感器机型 (P1/A1) 或未收到上报时恒 0, 显示 -- 更诚实
+                    if (st->chamber_temp <= 0.0f) snprintf(buf, sizeof(buf), "--");
+                    else                          snprintf(buf, sizeof(buf), "%d°C", (int)st->chamber_temp);
                     lv_label_set_text(val, buf); break;
                 case CMP_REMAIN:
                     if (st->mc_remaining > 0) {

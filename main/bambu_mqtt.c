@@ -163,7 +163,13 @@ static void parse_print_json(cJSON *print_obj) {
         st->bed_temp = (float)item->valuedouble;
     if ((item = cJSON_GetObjectItem(print_obj, "bed_target_temper")))
         st->bed_target = (float)item->valuedouble;
-    if ((item = cJSON_GetObjectItem(print_obj, "chamber_temper")))
+    // 腔体温度: X1/P1 老机型在顶层 chamber_temper; X2D/H2D 新固件改在
+    // device.ctc.info 结构块里 (device.ctc.info.temp), 老字段恒为 0
+    cJSON *dev = cJSON_GetObjectItem(print_obj, "device");
+    cJSON *ctc_info = cJSON_GetObjectItem(cJSON_GetObjectItem(dev, "ctc"), "info");
+    if ((item = cJSON_GetObjectItem(ctc_info, "temp")))
+        st->chamber_temp = (float)item->valuedouble;
+    else if ((item = cJSON_GetObjectItem(print_obj, "chamber_temper")))
         st->chamber_temp = (float)item->valuedouble;
 
     // 进度
