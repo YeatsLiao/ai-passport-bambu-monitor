@@ -1,5 +1,9 @@
 # 开发日志
 
+## 2026-11-05 更新
+
+完成 MQTT 机型顶栏、四槽 AMS 外置行去重、HT 主题细节，以及 main 源码按职责分类。现行架构见 [architecture.md](architecture.md)，实现与验证见 [本轮记录](changes/2026-11-05-device-pages.md)。下文保留早期演进过程，其中目录、固定页数与旧配网交互属于历史状态。
+
 完整记录 AI Passport Bambu Monitor 从立项到运行的全部开发过程，包括踩过的坑、方案演进和最终实现。
 
 ---

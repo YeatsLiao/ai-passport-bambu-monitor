@@ -1,252 +1,52 @@
 # 开发文档
 
-## 项目概述
+当前代码：2026-11-05。目标硬件为 FoloToy AI Passport / ESP32-C3，ESP-IDF 5.5.5、LVGL 9。源码已完成多设备分页、设置交互、配网回退及机型标题；本轮未烧录，真实打印机兼容性仍需验收。
 
-AI Passport Bambu Monitor 是基于 FoloToy AI Passport 硬件的拓竹打印机局域网监控设备。设备通过 WiFi 连接局域网，使用 MQTT-TLS 协议与拓竹打印机通信，实时显示打印状态、温度、进度、AMS 耗材等信息。
+## 导航
 
-## 功能
+- [源码架构和目录职责](architecture.md)
+- [本轮机型标题、页面去重和目录整理](changes/2026-11-05-device-pages.md)
+- [第一、二批：报告解析与多 AMS/HT](batch12-implementation-2026-11-02.md)
+- [第三批：设置页](batch3-implementation-2026-11-03.md)
+- [第四批：配网与恢复](batch4-implementation-2026-11-03.md)
+- [UI 设计](UI-DESIGN.md)、[历史开发日志](development-log.md)
+- [原排查快照](project-audit-2026-11-02.md)（其中问题状态和源码路径以快照日期为准）
 
-| 功能 | 说明 |
-|------|------|
-| 实时状态监控 | 喷嘴/热床/腔体温度、打印进度、层数、剩余时间、打印状态 |
-| NTP 实时时间 | SNTP 同步（ntp.aliyun.com，UTC+8），顶栏中间显示 HH:MM |
-| 电池电量 | CW2017 电量计（I2C），顶栏右侧显示 BAT:xx% |
-| AMS 信息 | 4 个 AMS 料槽 + 外挂料槽（Ext）：耗材类型、色块、剩余量、当前使用托盘 |
-| 风扇转速 | 冷却风扇、部件风扇百分比 |
-| 12 种 UI 风格 | 运行时由配网页下拉切换（无需重编译）：拓竹/赛博/希卡/纯白/工控/霓虹/像素/固态硬盘/F1/仪表盘/Geist/Apple |
-| 中/英双语界面 | 运行时切换，中文用按需裁剪的点阵字体（`tools/gen_cn_font.js` 生成） |
-| 运行时配网 | SoftAP + captive portal，手机填表单配置 WiFi/打印机/风格/语言/组件排序，NVS 持久化 |
-| 组件排序 | 第 1 页显示哪些数据、按什么顺序，配网页勾选+上下调序（7 套风格支持） |
-| 3 按键交互 | UP/DOWN 翻页，OK 手动刷新，OK 长按进配网 |
-| 自动重连 | WiFi 和 MQTT 断线自动重连 |
+## 页面与名称
 
-## 技术架构
+顶栏优先显示 MQTT 中识别出的打印机型号，例如 X1C、H2D；没有可靠字段时显示 Bambu。型号不是用户自定义设备昵称，也不表示该机型所有功能均已适配。读取 `print.printer_type`；订阅 report 成功后发送 `info/get_version`，仅从 ota 主机模块的 `product_name` / 可识别 `hw_ver` 获取备用型号。AMS 模块不能覆盖打印机型号。
 
-```
-┌─────────────────────────────────────────────┐
-│                  main/                       │
-│  main.c          启动流程 + 按键分发         │
-│  bambu_mqtt.h/c  WiFi + MQTT-TLS + JSON 解析 │
-│  bambu_state.h/c 打印机状态数据结构           │
-│  app_config.h/c  运行时配置（NVS 持久化）     │
-│  wifi_prov.h/c   配网（SoftAP + captive portal）│
-│  ui/                                         │
-│    ui_monitor.h/c  风格注册表派发 + 分页（12 套）│
-│    style_*.c       各风格布局实现             │
-│    ui_theme.h/c    12 套调色板 + 对比度/色块工具│
-│    ui_lang.h/c     中英文案与字体运行时切换   │
-├─────────────────────────────────────────────┤
-│               components/bsp/                │
-│  bsp_display / bsp_button / bsp_pins         │
-├─────────────────────────────────────────────┤
-│   ESP-IDF 5.5.x + LVGL 9.5 + esp-mqtt       │
-└─────────────────────────────────────────────┘
-```
+型号信息单独更新，不延长打印数据有效期，也不能通过配对验证。未知型号不猜测；重新连接清空旧型号，等待新报告。
 
-### 硬件层 (BSP)
+页面按真实报文动态生成：总览 → 已发现的各 AMS / AMS HT → 设置。四槽 AMS 页含外置耗材一行，因此存在四槽页时不再重复生成外置页。没有四槽 AMS 时，已上报的外置耗材才独立成页；HT + 外置可分别显示。未接入的 HT 不显示占位页。
 
-复用 `ai-passport` 仓库的 BSP 组件（精简版）：
-
-- **bsp_display**: ST7789P 240×320 显示屏驱动 + LVGL 集成（`bsp_lvgl_lock/unlock`）
-- **bsp_button**: 三按键输入（上/下/确认），支持单击/长按事件
-- **bsp_i2c / bsp_battery**: I2C 主机 + CW2017 电量计驱动
-- **bsp_pins**: ESP32-C3 引脚定义
-
-### 通信层 (MQTT-TLS)
-
-基于 ESP-IDF 内置 MQTT 客户端，TLS 加密连接：
-
-- **连接目标**: `mqtts://<打印机IP>:8883`
-- **认证**: 用户名 `bblp`，密码为 LAN Access Code
-- **订阅 Topic**: `device/<SERIAL>/report`
-- **推送 Topic**: `device/<SERIAL>/request`
-- **TLS**: 跳过证书验证（拓竹使用自签名证书）
-
-### 应用层：数据流
-
-```
-打印机 MQTT Broker                 设备
-  ── report JSON ──>    mqtt_event_handler()
-                          └─ parse_print_json()
-                               └─ 更新 g_bambu_state
-                                     └─ refresh_timer_cb (1s)
-                                          └─ update_ui() → LVGL 刷新
-```
-
-JSON 数据结构（`print` 对象内的关键字段，完整报文见 [Topic-device.json](Topic-device.json)）：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `nozzle_temper` | float | 喷嘴当前温度 |
-| `bed_temper` | float | 热床当前温度 |
-| `chamber_temper` | float | 腔体温度（X1 系列） |
-| `mc_percent` | int | 打印进度 0-100 |
-| `mc_remaining_time` | int | 剩余时间（分钟） |
-| `gcode_state` | string | 打印状态 IDLE/RUNNING/PAUSE/FINISH/FAILED |
-| `spd_lvl` | int | 速度等级 1-5 |
-| `cooling_fan_speed` | int | 冷却风扇 0-100 |
-| `ams.ams[].tray[]` | array | AMS 料槽（注意 `ams` 内嵌套 `ams` 单元数组） |
-| `ams.tray_now` | string | 当前使用的料槽号（`"0"`~`"3"`，是字符串） |
-| `vt_tray` | object | 外挂料槽（Ext，虚拟托盘，不占 AMS 槽位） |
-| `tray[].tray_color` | string | 耗材颜色 `RRGGBBAA` hex（注意 `cols` 是数组不是字符串） |
-
-## 代码结构
-
-```
-├── main/
-│   ├── main.c              # 入口: 初始化 + 启动画面 + 按键回调
-│   ├── bambu_state.h/c     # 打印机状态数据结构 + 状态枚举
-│   ├── bambu_mqtt.h/c      # WiFi 连接 + MQTT-TLS 客户端 + JSON 解析
-│   ├── app_config.h/c      # 运行时配置（风格/语言/组件排序，NVS 持久化，回落 config.h 出厂默认）
-│   ├── wifi_prov.h/c       # 配网模式（SoftAP + captive DNS + 网页表单）
-│   ├── config.example.h    # 配置模板（复制为 config.h 后修改，可选）
-│   ├── CMakeLists.txt
-│   └── ui/
-│       ├── ui_theme.h/c    # 12 套调色板 + 对比度/色块/图标工具
-│       ├── ui_lang.h/c     # 中英文案与字体运行时切换
-│       ├── ui_monitor.h/c  # 风格注册表派发 + 分页逻辑
-│       ├── style_*.c       # 12 套风格的布局实现
-│       └── fonts/          # 裁剪版中文字体（tools/gen_cn_font.js 生成）
-├── components/bsp/         # 硬件抽象层（显示 + 按键）
-├── tools/                  # gen_cn_font.js/cn_chars.txt（生成字体）、check_cjk_coverage.ps1、ui_tokens_preview.html
-├── docs/
-│   ├── README.md           # 本文档
-│   └── development-log.md  # 开发日志（方案演进与踩坑记录）
-├── CMakeLists.txt
-├── sdkconfig.defaults
-├── partitions.csv
-└── .gitignore
-```
+AMS 1 表示耗材盒类型和编号，与 X1C/H2D 打印机型号不同。四槽页仍保留 AMS 名称；打印机型号统一放在顶栏。HT 显示单槽耗材、已知温湿度和干燥状态，共用主题色、直角/圆角、分隔线、边框和 Pixel 阴影；未上报值为 `--`。
 
 ## 构建与烧录
 
-### 环境要求
+在 ESP-IDF 5.5.5 终端内：
 
-- ESP-IDF 5.5.x（需先激活 ESP-IDF 命令行环境）
-- 目标：ESP32-C3 / 8MB Flash / 无 PSRAM
-
-### 构建步骤
-
-```bash
-# 1.（可选）从模板预置出厂默认配置；不填也行，烧录后可长按 OK 键用手机配网
-#    cp main/config.example.h main/config.h   # 编辑填入 WiFi/打印机/默认风格/语言
-
-# 2. 编译
+```powershell
+Set-Location 'D:\2.Project\ai-passport-bambu-monitor'
 idf.py build
-
-# 3. 烧录
-idf.py -p COM3 flash monitor    # COM 口号按实际修改
+if ($LASTEXITCODE -eq 0) { idf.py -p COM6 flash monitor }
 ```
 
-> 首次开机或长按 OK 键进入配网模式，手机连设备热点（形如 `Passport-XXXX`）访问 `http://192.168.4.1` 填写表单即可，风格/语言/组件排序均可随时在网页改，无需重编译。
+串口以实际设备为准，Ctrl+] 退出日志。`main/config.h` 保留原位置且不入库；无需新增凭据即可复用设备 NVS，未配置设备走热点配网。普通 flash 不执行整片擦除。
 
-> 修改 `sdkconfig.defaults` 后需全量清理再构建：
-> `del sdkconfig && idf.py fullclean && idf.py build`
+需要全量包时，构建成功后重新执行 `idf.py merge-bin`，使用新生成的 `build/merged-binary.bin`。不要把旧的 full/merged 文件当成本轮固件。
 
-### 配置说明
+## 回归验证
 
-| 配置项 | 说明 | 获取方式 |
-|--------|------|----------|
-| `CFG_WIFI_SSID` | WiFi 名称 | — |
-| `CFG_WIFI_PASSWORD` | WiFi 密码 | — |
-| `CFG_PRINTER_IP` | 打印机局域网 IP | 打印机屏幕 设置 > 网络 |
-| `CFG_PRINTER_SERIAL` | 打印机序列号（15 位） | 设置 > 设备 > 序列号 |
-| `CFG_ACCESS_CODE` | LAN 访问码（8 位） | 设置 > 网络 > 访问码 |
+主机检查需 GCC/Clang，UI 模拟器另需 GCC/G++、CMake、Ninja；设置 `IDF_PATH` 为本机 ESP-IDF 目录。
 
-> **注意**：`config.h` 包含 WiFi 密码和打印机访问码，已在 `.gitignore` 中排除。
-
-## 关键实现细节
-
-### TLS 自签名证书处理
-
-拓竹打印机使用自签名证书，局域网监控设备需要跳过证书验证。ESP-IDF 的 Kconfig 存在依赖关系：
-
-```
-CONFIG_ESP_TLS_INSECURE=y                          # 必须先开启
-CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY=y            # 依赖上面的选项
+```powershell
+python tools/tests/test_reports.py
+python tools/tests/test_mqtt_lifecycle.py
+python tools/tests/test_display_config.py
+python tools/tests/test_provisioning.py
+python tools/font/check_cjk_coverage.py
+python tools/ui/ui_simulator.py --idf D:/1.Soft/Espressif/frameworks/esp-idf-v5.5.5
 ```
 
-Arduino 框架的 `setInsecure()` 等价于以上两个 Kconfig 选项。
-
-### LVGL 线程安全
-
-所有 LVGL 操作必须在 LVGL 任务中或持锁执行：
-
-```c
-// 按键回调中操作 LVGL
-if (bsp_lvgl_lock(500)) {
-    ui_monitor_key(btn, ev);
-    bsp_lvgl_unlock();
-}
-```
-
-### 无 PSRAM 内存优化
-
-ESP32-C3 无 PSRAM，已做以下优化：
-
-- MQTT 缓冲区：16KB（可配置）
-- LVGL DMA 缓冲：20 行单缓冲（~9.6KB）
-- JSON 解析：cJSON 解析后立即释放原始字符串
-- TLS：跳过证书验证（避免 CA 证书存储分配）
-
-### NTP 时间同步
-
-WiFi/MQTT 连接就绪后初始化 SNTP：服务器 `ntp.aliyun.com` + `pool.ntp.org`，时区 `CST-8`（UTC+8）。未同步时顶栏显示 `--:--`，同步后每秒刷新。
-
-### 电池电量
-
-CW2017 电量计挂 I2C 总线（地址 0x63），顶栏右侧显示 `BAT:xx%`；芯片不存在时静默跳过（USB 供电场景）。
-
-### 多风格 UI 与翻页
-
-共 12 套 UI 风格（设计描述见 [UI-DESIGN.md](UI-DESIGN.md)），均为同一固件内编译，运行时由 `app_config` 的风格注册表（`style_ops`）根据 NVS 记录派发；`config.h` 的 `CFG_UI_STYLE` 仅作为 NVS 无记录时的出厂默认：
-
-| 宏值 | 源文件 | 风格 |
-|------|--------|------|
-| `STYLE_BAMBU` | style_bambu.c | 拓竹原厂极简工业风 |
-| `STYLE_CYBER` | style_cyber.c | 赛博极简监控风 |
-| `STYLE_SHEIKAH` | style_sheikah.c | 希卡石板极简衍生风 |
-| `STYLE_WHITE` | style_white.c | 纯白极简素雅风 |
-| `STYLE_INDUSTRIAL` | style_industrial.c | 硬核机房工控风 |
-| `STYLE_NEON` | style_neon.c | 极简霓虹低饱和极客风 |
-| `STYLE_PIXEL` | style_pixel.c | 像素机器人风（ai-passport 官网） |
-| `STYLE_SSD` | style_ssd.c | 固态硬盘标签风（黑标签白印+金铜螺丝+SATA 金手指） |
-| `STYLE_F1` | style_f1.c | F1 转播计时风（碳黑 + 涂装色条行卡 + F1 红 + 旗黄计时） |
-| `STYLE_GAUGE` | style_gauge.c | 图形仪表盘风（六圆弧仪表环 + AMS 竖条电池，参考 BambuHelper） |
-| `STYLE_GEIST` | style_geist.c | Geist 控制台风（纯黑 + Vercel 蓝 + 发丝线分区，参考 Vercel Geist） |
-| `STYLE_APPLE` | style_apple.c | Apple 风（iOS 浅灰分组底 + 白色圆角卡片 + systemBlue，参考 iOS HIG） |
-
-所有风格均使用 2 页分页：
-
-| 页面 | 内容 |
-|------|------|
-| Page 0 | 主状态：进度百分比、进度条、温度、层数、速度、打印状态 |
-| Page 1 | AMS 信息：4 个料槽 + Ext 外挂（色块 + 耗材类型 + 剩余量） |
-
-翻页架构（v2）：标题栏/底部栏/两页卡片**首次一次性创建**，之后翻页只切换 `LV_OBJ_FLAG_HIDDEN`，不销毁不重建——避免低内存下 destroy/rebuild 导致的渲染异常和悬空指针。页码指示器由风格文件直接管理。
-
-## 故障排查
-
-| 问题 | 可能原因 | 解决方法 |
-|------|----------|----------|
-| 编译找不到 `mqtt` 组件 | ESP-IDF 5.5.x 组件名变更 | REQUIRES 用 `mqtt` 不是 `esp_mqtt` |
-| `No server verification option set` | TLS Kconfig 依赖缺失 | 同时开启 `ESP_TLS_INSECURE` 和 `SKIP_SERVER_CERT_VERIFY` |
-| LVGL Guru Meditation Error | UI 对象指针无效访问 | 用结构体保存指针，不用 user_data 遍历 |
-| 中文显示方块（豆腐块） | 标签用了无中文字形的 `L_FONT_NUM`（Montserrat） | 可能含中文的标签必须用随语言切换的 `L_FONT_TEXT`；新增汉字后跑 `tools/gen_cn_font.js` 重生字体 |
-| `sdkconfig` 修改不生效 | 旧 sdkconfig 缓存 | `del sdkconfig && idf.py fullclean` |
-| 改风格代码后设备无变化 | 改的不是当前选中的那套风格 | 风格已改运行时选择，先在配网页确认当前风格；`CFG_UI_STYLE` 只是出厂默认，NVS 有记录时会被覆盖 |
-| AMS 数据全空 | JSON 解析路径错误 | 真实结构 `print.ams.ams[unit].tray[]`，不是 `print.ams.tray` |
-
-## 参考项目
-
-- [BambuHelper](https://github.com/Keralots/BambuHelper) — 功能丰富的拓竹监控固件（PlatformIO + Arduino）
-- [AtomS3R-BambuMonitor](../../AtomS3R-BambuMonitor) — 轻量级 MQTT 协议参考（Arduino 单文件）
-- [ai-passport](../../ai-passport) — 硬件 BSP 和构建系统参考
-- [ai-passport-tiktok-remote](../../ai-passport-tiktok-remote) — 同硬件的蓝牙遥控器项目
-
-## 扩展方向
-
-- 电池供电 + 低功耗休眠（按键唤醒）
-- 打印完成通知（声音/振动）
-- 多打印机切换监控
-- 打印历史统计
+模拟器运行真实 LVGL 与 12 主题的中英文组合；截图位于 `build/ui-simulator/previews/<主题>-<语言>/`。主机测试不能代替真实网络、按键、NVS 断电和 ESP32-C3 堆内存验收。

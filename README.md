@@ -10,11 +10,11 @@
 
 ## 能玩什么
 
-- **实时状态**：进度 / 状态、三路温度、层数、剩余时间、速度、AMS 四料仓 + 外部耗材——色块跟随打印机数据变化，电池分档变色
+- **实时状态**：进度 / 状态、温度、层数、剩余时间、速度；按已发现的 AMS / AMS HT 动态分页，外置耗材在四槽 AMS 页显示；没有四槽 AMS 时独立成页，未知读数显示 `--`
 - **12 种 UI 风格 + 中英双语**：配网页下拉即换、无需重编译；第 1 页显示哪些组件、什么顺序，也能勾选调序
 - **纯局域网**：不走云端、数据不出家门；支持 X1 / P1 / A1 系列，自动适配数据格式
 
-**按键**：上 / 下翻页 · 短按确认刷新数据 · 长按确认重新配网
+**按键**：上 / 下翻页 · 短按确认刷新数据 · 最后一页再按下进入设置，可调亮度、熄屏和重新配网。当前分页、机型识别与源码目录见[开发文档](docs/README.md)及[最新实施记录](docs/changes/2026-11-05-device-pages.md)。
 
 ## 快速上手（约 3 分钟）
 
@@ -22,7 +22,7 @@
 
 <p align="center"><img src="docs/img/bambu_lan_settings.jpg" width="460" alt="打印机局域网设置" /></p>
 
-**2. 手机配网**：首次开机（或长按确认键）设备进入配网模式，屏幕显示热点名；手机连 `Passport-XXXX`（无密码），配置页通常自动弹出，没弹出就打开 `http://192.168.4.1`，填好 WiFi（仅 2.4GHz）与打印机信息，点「保存并重启设备」。
+**2. 手机配网**：首次开机（或在设置中选择重新配网）设备进入配网模式，屏幕显示热点名；手机连 `Passport-XXXX`（无密码），配置页通常自动弹出，没弹出就打开 `http://192.168.4.1`，填好 WiFi（仅 2.4GHz）与打印机信息，点「保存并重启设备」。
 
 <table>
   <tr>
@@ -39,7 +39,7 @@
   </tr>
 </table>
 
-**3. 完成**：屏幕出现实时打印数据即成功。配置只存设备本地（NVS），不上传任何服务器；以后换 WiFi 或换打印机，长按确认键重新配网即可。
+**3. 完成**：屏幕出现实时打印数据即成功。配置只存设备本地（NVS），不上传任何服务器；以后换 WiFi 或换打印机，在设置中选择重新配网即可。
 
 ---
 
@@ -64,7 +64,7 @@
 </details>
 
 <details>
-<summary><b>构建与烧录</b>（需 <a href="https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32c3/">ESP-IDF</a> 5.5.3）</summary>
+<summary><b>构建与烧录</b>（需 <a href="https://docs.espressif.com/projects/esp-idf/zh_CN/latest/esp32c3/">ESP-IDF</a> 5.5.5）</summary>
 
 ```bash
 idf.py build
@@ -77,7 +77,7 @@ idf.py -p COM3 flash
 ```
 </details>
 
-**文档**：[开发文档](docs/README.md) · [UI 设计说明](docs/UI-DESIGN.md) · [开发日志](docs/development-log.md)
+**文档**：[源码架构](docs/architecture.md) · [开发文档](docs/README.md) · [UI 设计说明](docs/UI-DESIGN.md) · [开发日志](docs/development-log.md)
 
 ## 致谢 & License
 
@@ -99,11 +99,11 @@ A Bambu Lab printer monitor built on [FoloToy AI Passport](https://github.com/Fo
 
 ## What you get
 
-- **Live status**: progress / state, three temperature channels, layer, remaining time, speed, 4 AMS slots + external spool — colors follow live printer data, battery tint follows charge
+- **Live status**: progress / state, three temperature channels, layer, remaining time, speed, dynamic AMS / HT pages + external spool (no duplicate page when included in a four-slot AMS view) — colors follow live printer data, battery tint follows charge
 - **12 UI styles + bilingual UI**: switch from a dropdown on the setup page, no recompile; pick and reorder page-1 tiles there too
-- **LAN only**: no cloud, data never leaves your network; supports X1 / P1 / A1 series automatically
+- **LAN only**: no cloud, data never leaves your network; supports basic X1 / P1 / A1 telemetry; newer models require device validation
 
-**Buttons**: Up / Down switch pages · OK click refreshes · OK long-press re-provisions
+**Buttons**: Up / Down switch pages · OK refreshes · Down past the last page opens Settings (brightness, sleep and network setup).
 
 ## Quick start (about 3 minutes)
 
@@ -111,7 +111,7 @@ A Bambu Lab printer monitor built on [FoloToy AI Passport](https://github.com/Fo
 
 <p align="center"><img src="docs/img/bambu_lan_settings.jpg" width="460" alt="Printer LAN settings" /></p>
 
-**2. Provision from your phone**: on first boot (or after long-pressing OK) the device enters setup mode and shows its hotspot name; join `Passport-XXXX` (open network) — the config page usually pops up, if not open `http://192.168.4.1`. Fill in Wi-Fi (2.4 GHz only) and printer details, tap "Save & Restart".
+**2. Provision from your phone**: on first boot (or after choosing Network in Settings) the device enters setup mode and shows its hotspot name; join `Passport-XXXX` (open network) — the config page usually pops up, if not open `http://192.168.4.1`. Fill in Wi-Fi (2.4 GHz only) and printer details, tap "Save & Restart".
 
 <table>
   <tr>
@@ -128,7 +128,7 @@ A Bambu Lab printer monitor built on [FoloToy AI Passport](https://github.com/Fo
   </tr>
 </table>
 
-**3. Done**: live print data on screen means you're set. Everything is stored locally on the device (NVS), never uploaded; to change Wi-Fi or printer later, long-press OK to re-provision.
+**3. Done**: live print data on screen means you're set. Everything is stored locally on the device (NVS), never uploaded; to change Wi-Fi or printer later, choose Network in Settings.
 
 ---
 
@@ -154,7 +154,7 @@ Only for building from source or baking defaults — every setting stays changea
 </details>
 
 <details>
-<summary><b>Build &amp; flash</b> (requires <a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/">ESP-IDF</a> 5.5.3)</summary>
+<summary><b>Build &amp; flash</b> (requires <a href="https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/">ESP-IDF</a> 5.5.5)</summary>
 
 ```bash
 idf.py build
