@@ -1,4 +1,4 @@
-// main/app_config.c —— 运行时配置实现
+// main/config/app_config.c —— 运行时配置实现
 //
 // 存储布局: NVS 命名空间 "bmon", 每个字段一个 key。
 // 编译期默认值: config.h 中的 CFG_* 宏; 若仍是 config.example.h 的
@@ -36,6 +36,50 @@ static const char *TAG = "app_config";
 
 static app_config_t s_cfg;
 static bool s_provisioned = false;
+static bool s_trial;
+static app_config_t s_stable;
+typedef struct {
+    uint32_t version;
+    app_config_t cfg;
+} config_record_t;
+
+static bool usable(const app_config_t *cfg) {
+    return cfg->wifi_ssid[0] && cfg->printer_ip[0] &&
+           cfg->printer_serial[0] && cfg->access_code[0];
+}
+
+static bool read_record(nvs_handle_t h, const char *key, app_config_t *cfg) {
+    config_record_t rec;
+    size_t size = sizeof(rec);
+    if (nvs_get_blob(h, key, &rec, &size) != ESP_OK ||
+        size != sizeof(rec) || rec.version != 1) return false;
+    // Only records written by this firmware are accepted; all strings must terminate.
+    if (!memchr(rec.cfg.wifi_ssid, 0, sizeof(rec.cfg.wifi_ssid)) ||
+        !memchr(rec.cfg.wifi_pass, 0, sizeof(rec.cfg.wifi_pass)) ||
+        !memchr(rec.cfg.printer_ip, 0, sizeof(rec.cfg.printer_ip)) ||
+        !memchr(rec.cfg.printer_serial, 0, sizeof(rec.cfg.printer_serial)) ||
+        !memchr(rec.cfg.access_code, 0, sizeof(rec.cfg.access_code))) return false;
+    *cfg = rec.cfg;
+    return true;
+}
+
+static esp_err_t write_record(nvs_handle_t h, const char *key, const app_config_t *cfg) {
+    config_record_t rec = { .version = 1, .cfg = *cfg };
+    return nvs_set_blob(h, key, &rec, sizeof(rec));
+}
+
+static esp_err_t erase_trial(nvs_handle_t h) {
+    esp_err_t ret = nvs_erase_key(h, "trial");
+    return ret == ESP_ERR_NVS_NOT_FOUND ? ESP_OK : ret;
+}
+
+static void copy_network(app_config_t *dst, const app_config_t *src) {
+    memcpy(dst->wifi_ssid, src->wifi_ssid, sizeof(dst->wifi_ssid));
+    memcpy(dst->wifi_pass, src->wifi_pass, sizeof(dst->wifi_pass));
+    memcpy(dst->printer_ip, src->printer_ip, sizeof(dst->printer_ip));
+    memcpy(dst->printer_serial, src->printer_serial, sizeof(dst->printer_serial));
+    memcpy(dst->access_code, src->access_code, sizeof(dst->access_code));
+}
 
 // 把 CSV 顺序串 (如 "5,4,1,2,6,8") 解析为有序子集: 校验 1-9、去重、上限 max。
 // 返回写入个数 (空串/全非法 -> 0)。
@@ -47,7 +91,10 @@ static int parse_comp_csv(const char *csv, uint8_t *out, int max) {
         while (*p == ',' || *p == ' ') p++;
         if (*p < '0' || *p > '9') { while (*p && *p != ',') p++; continue; }
         int v = 0;
-        while (*p >= '0' && *p <= '9') { v = v * 10 + (*p - '0'); p++; }
+        while (*p >= '0' && *p <= '9') {
+            if (v <= APP_COMP_MAX) v = v * 10 + (*p - '0');
+            p++;
+        }
         if (v < 1 || v > APP_COMP_MAX) continue;
         bool dup = false;
         for (int i = 0; i < n; i++) if (out[i] == (uint8_t)v) { dup = true; break; }
@@ -105,9 +152,15 @@ esp_err_t app_config_set_display(uint8_t backlight, uint8_t screen_off_min) {
     if (backlight < BL_MIN) backlight = BL_MIN;
     if (backlight > BL_MAX) backlight = BL_MAX;
     if (screen_off_min > SOFF_MAX) screen_off_min = SOFF_MAX;
-    s_cfg.backlight = backlight;
-    s_cfg.screen_off_min = screen_off_min;
-    return app_config_save_display(&s_cfg);
+    app_config_t next = s_cfg;
+    next.backlight = backlight;
+    next.screen_off_min = screen_off_min;
+    esp_err_t ret = app_config_save_display(&next);
+    if (ret == ESP_OK) {
+        s_cfg.backlight = backlight;
+        s_cfg.screen_off_min = screen_off_min;
+    }
+    return ret;
 }
 
 // 从已打开的 NVS 读显示偏好 (风格/语言/亮度/熄屏/组件顺序)
@@ -135,6 +188,7 @@ static void load_display_prefs(nvs_handle_t h) {
 }
 
 esp_err_t app_config_init(void) {
+    s_trial = false;
     memset(&s_cfg, 0, sizeof(s_cfg));
     // 显示默认值: 编译期 config.h (NVS 有记录时被覆盖)
     s_cfg.ui_style = CFG_UI_STYLE;
@@ -198,24 +252,91 @@ esp_err_t app_config_init(void) {
         }
     }
 
+    // Stable blob takes precedence over legacy network keys. Display keys remain
+    // independent so local brightness/sleep changes survive future boots.
+    if (nvs_open(CFG_NS, NVS_READONLY, &h) == ESP_OK) {
+        app_config_t stable;
+        if (read_record(h, "stable", &stable)) {
+            copy_network(&s_cfg, &stable);
+            s_provisioned = usable(&s_cfg);
+        }
+        nvs_close(h);
+    }
     if (s_provisioned) {
         ESP_LOGI(TAG, "已加载 NVS 配置 (SSID: %s, 打印机: %s)",
                  s_cfg.wifi_ssid, s_cfg.printer_ip);
-        return ESP_OK;
     }
 
     // NVS 无记录: 回退到编译期默认值 (作者在自己电脑上编译时填的 config.h)
-    if (compile_cfg_valid()) {
+    if (!s_provisioned && compile_cfg_valid()) {
         strncpy(s_cfg.wifi_ssid, CFG_WIFI_SSID, sizeof(s_cfg.wifi_ssid) - 1);
         strncpy(s_cfg.wifi_pass, CFG_WIFI_PASSWORD, sizeof(s_cfg.wifi_pass) - 1);
         strncpy(s_cfg.printer_ip, CFG_PRINTER_IP, sizeof(s_cfg.printer_ip) - 1);
         strncpy(s_cfg.printer_serial, CFG_PRINTER_SERIAL, sizeof(s_cfg.printer_serial) - 1);
         strncpy(s_cfg.access_code, CFG_ACCESS_CODE, sizeof(s_cfg.access_code) - 1);
         ESP_LOGI(TAG, "NVS 无记录, 使用编译期默认配置 (SSID: %s)", s_cfg.wifi_ssid);
-    } else {
+        s_provisioned = usable(&s_cfg);
+    } else if (!s_provisioned) {
         ESP_LOGW(TAG, "固件未包含任何网络配置, 应进入配网模式");
     }
+    s_stable = s_cfg;
+    if (nvs_open(CFG_NS, NVS_READONLY, &h) == ESP_OK) {
+        app_config_t trial;
+        if (read_record(h, "trial", &trial) && usable(&trial)) {
+            s_cfg = trial;
+            s_trial = s_provisioned = true;
+        }
+        nvs_close(h);
+    }
     return ESP_OK;
+}
+
+esp_err_t app_config_stage(const app_config_t *cfg) {
+    if (!cfg || !usable(cfg) || s_trial) return ESP_ERR_INVALID_ARG;
+    nvs_handle_t h;
+    esp_err_t ret = nvs_open(CFG_NS, NVS_READWRITE, &h);
+    if (ret != ESP_OK) return ret;
+    // First store the known previous network before publishing the trial key.
+    ret = write_record(h, "stable", &s_cfg);
+    if (ret == ESP_OK) ret = nvs_commit(h);
+    if (ret == ESP_OK) ret = write_record(h, "trial", cfg);
+    if (ret == ESP_OK) ret = nvs_commit(h);
+    nvs_close(h);
+    return ret;
+}
+
+bool app_config_has_trial(void) { return s_trial; }
+
+esp_err_t app_config_confirm_trial(void) {
+    if (!s_trial) return ESP_OK;
+    nvs_handle_t h;
+    esp_err_t ret = nvs_open(CFG_NS, NVS_READWRITE, &h);
+    if (ret != ESP_OK) return ret;
+    ret = save_display_keys(h, &s_cfg);
+    if (ret == ESP_OK) ret = write_record(h, "stable", &s_cfg);
+    if (ret == ESP_OK) ret = nvs_commit(h);
+    // A power cut before erasing simply retries confirmation on the next boot.
+    if (ret == ESP_OK) ret = erase_trial(h);
+    if (ret == ESP_OK) ret = nvs_commit(h);
+    nvs_close(h);
+    if (ret == ESP_OK) { s_stable = s_cfg; s_trial = false; }
+    return ret;
+}
+
+esp_err_t app_config_rollback_trial(void) {
+    if (!s_trial) return ESP_OK;
+    nvs_handle_t h;
+    esp_err_t ret = nvs_open(CFG_NS, NVS_READWRITE, &h);
+    if (ret != ESP_OK) return ret;
+    ret = erase_trial(h);
+    if (ret == ESP_OK) ret = nvs_commit(h);
+    nvs_close(h);
+    if (ret == ESP_OK) {
+        s_cfg = s_stable;
+        s_provisioned = usable(&s_cfg);
+        s_trial = false;
+    }
+    return ret;
 }
 
 const app_config_t *app_config_get(void) {

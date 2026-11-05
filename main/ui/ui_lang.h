@@ -57,6 +57,25 @@ typedef enum {
     UI_STR_BACK,
     UI_STR_OFF,
     UI_STR_CONFIRM_RESET,
+    UI_STR_SETTINGS_HINT,
+    UI_STR_WAIT_DATA,
+    UI_STR_STALE_DATA,
+    UI_STR_TEMPERATURE,
+    UI_STR_HUMIDITY,
+    UI_STR_DRYING,
+    UI_STR_DEVICE_LIMIT,
+    UI_STR_DRY_OFF,
+    UI_STR_DRY_CHECKING,
+    UI_STR_DRY_ACTIVE,
+    UI_STR_DRY_STOPPING,
+    UI_STR_DRY_ERROR,
+    UI_STR_SETTINGS_EDIT_HINT,
+    UI_STR_SETTINGS_CONFIRM_HINT,
+    UI_STR_SETTINGS_EDITING,
+    UI_STR_SETTINGS_SAVED,
+    UI_STR_SETTINGS_SAVE_FAILED,
+    UI_STR_SETTINGS_CANCELLED,
+    UI_STR_DISPLAY_OPTIONS,
     UI_STR_COUNT
 } ui_str_id_t;
 
@@ -110,6 +129,25 @@ const lv_font_t *ui_lang_font_big(void);    // 20px 标题
 #define L_BACK              ui_lang_str(UI_STR_BACK)
 #define L_OFF               ui_lang_str(UI_STR_OFF)
 #define L_CONFIRM_RESET     ui_lang_str(UI_STR_CONFIRM_RESET)
+#define L_SETTINGS_HINT     ui_lang_str(UI_STR_SETTINGS_HINT)
+#define L_WAIT_DATA         ui_lang_str(UI_STR_WAIT_DATA)
+#define L_STALE_DATA        ui_lang_str(UI_STR_STALE_DATA)
+#define L_TEMPERATURE       ui_lang_str(UI_STR_TEMPERATURE)
+#define L_HUMIDITY          ui_lang_str(UI_STR_HUMIDITY)
+#define L_DRYING            ui_lang_str(UI_STR_DRYING)
+#define L_DEVICE_LIMIT      ui_lang_str(UI_STR_DEVICE_LIMIT)
+#define L_DRY_OFF           ui_lang_str(UI_STR_DRY_OFF)
+#define L_DRY_CHECKING      ui_lang_str(UI_STR_DRY_CHECKING)
+#define L_DRY_ACTIVE        ui_lang_str(UI_STR_DRY_ACTIVE)
+#define L_DRY_STOPPING      ui_lang_str(UI_STR_DRY_STOPPING)
+#define L_DRY_ERROR         ui_lang_str(UI_STR_DRY_ERROR)
+#define L_SETTINGS_EDIT_HINT ui_lang_str(UI_STR_SETTINGS_EDIT_HINT)
+#define L_SETTINGS_CONFIRM_HINT ui_lang_str(UI_STR_SETTINGS_CONFIRM_HINT)
+#define L_SETTINGS_EDITING ui_lang_str(UI_STR_SETTINGS_EDITING)
+#define L_SETTINGS_SAVED ui_lang_str(UI_STR_SETTINGS_SAVED)
+#define L_SETTINGS_SAVE_FAILED ui_lang_str(UI_STR_SETTINGS_SAVE_FAILED)
+#define L_SETTINGS_CANCELLED ui_lang_str(UI_STR_SETTINGS_CANCELLED)
+#define L_DISPLAY_OPTIONS ui_lang_str(UI_STR_DISPLAY_OPTIONS)
 
 // 随语言切换的字体宏 (英文构建下即 Montserrat, 与旧行为一致)
 #define L_FONT_TEXT         ui_lang_font_text()

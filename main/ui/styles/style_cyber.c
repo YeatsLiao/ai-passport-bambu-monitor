@@ -1,13 +1,13 @@
-// main/ui/style_cyber.c —— 风格2: 赛博极简监控风
+// main/ui/styles/style_cyber.c —— 风格2: 赛博极简监控风
 // 布局: Page0 = 四角括号框 (HUD 风格) + 发光大字百分比 + 左侧霓虹竖条数据行
 //       Page1 = AMS 霓虹色片列表 (发光边框高亮当前料槽)
 // 翻页策略: 两页卡片同时创建, 翻页只切换显示/隐藏 (不 destroy/rebuild)
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
-#include "../bambu_state.h"
-#include "../bambu_mqtt.h"
-#include "../config.h"
+#include "bambu_state.h"
+#include "bambu_mqtt.h"
+#include "config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -126,7 +126,8 @@ static const char *state_text(bambu_print_state_t s) {
         case BAMBU_STATE_FINISH:  return L_STATE_FINISH;
         case BAMBU_STATE_FAILED:  return L_STATE_FAILED;
         case BAMBU_STATE_PREPARE: return L_STATE_PREPARE;
-        default:                  return L_STATE_IDLE;
+        case BAMBU_STATE_IDLE: return L_STATE_IDLE;
+        default: return "--";
     }
 }
 
@@ -215,6 +216,7 @@ static void build_page1(void) {
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->accent);
+    ui_monitor_bind_filament_title(ams_t);
     if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s", LV_SYMBOL_SD_CARD, L_AMS);
 
     memset(s_ams_chip, 0, sizeof(s_ams_chip));
@@ -268,6 +270,7 @@ void style_cyber_build(void) {
     lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, L_FONT_TEXT, c->accent);
+    ui_monitor_bind_printer_title(title);
     if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
 
     s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, c->accent);
@@ -291,11 +294,13 @@ void style_cyber_build(void) {
     lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, L_FONT_TEXT, c->accent);
+    ui_monitor_bind_nav_label(nav);
     if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
 
     char pg[16];
     snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
     s_pg_lbl = mk_lbl(footer, pg, L_FONT_NUM, c->accent);
+    ui_monitor_bind_page_label(s_pg_lbl);
     if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
 
     // ── 内容区域容器 ──
@@ -322,7 +327,7 @@ void style_cyber_build(void) {
 // 更新 (每秒调用)
 // ---------------------------------------------------------------------------
 void style_cyber_update(void) {
-    bambu_state_t *st = &g_bambu_state;
+    bambu_state_t *st = ui_monitor_state();
     const ui_theme_colors_t *c = ui_theme_get_colors();
     char buf[48];
 
@@ -351,11 +356,11 @@ void style_cyber_update(void) {
     // ── Page 0: HUD + 霓虹行 ──
     if (s_page == 0) {
         if (s_pct_lbl) {
-            snprintf(buf, sizeof(buf), "%d%%", st->mc_percent);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_PROGRESS, "%d%%", st->mc_percent);
             lv_label_set_text(s_pct_lbl, buf);
         }
         if (s_state_lbl) {
-            bool conn = bambu_mqtt_connected();
+            bool conn = ui_monitor_data_ready();
             uint32_t sc = conn ? state_color(st->state, c) : c->error;
             if (conn) snprintf(buf, sizeof(buf), "%s %s",
                                ui_theme_state_icon(st->state, true), state_text(st->state));
@@ -365,13 +370,13 @@ void style_cyber_update(void) {
         }
         // HUD 框内两行: 图标 + 纯数字 (中英文宽度一致)
         if (s_layer_lbl) {
-            snprintf(buf, sizeof(buf), "%s %d/%d", ICO(CMP_LAYER),
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_LAYER | BAMBU_VALID_TOTAL_LAYER, "%s %d/%d", ICO(CMP_LAYER),
                      st->layer_num, st->total_layer);
             lv_label_set_text(s_layer_lbl, buf);
         }
         if (s_remain_lbl) {
             if (st->mc_remaining > 0)
-                snprintf(buf, sizeof(buf), "%s %dh%02dm", ICO(CMP_REMAIN),
+                ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_REMAIN, "%s %dh%02dm", ICO(CMP_REMAIN),
                          st->mc_remaining / 60, st->mc_remaining % 60);
             else
                 snprintf(buf, sizeof(buf), "%s --", ICO(CMP_REMAIN));
@@ -379,22 +384,22 @@ void style_cyber_update(void) {
         }
         // 霓虹竖条数据行
         if (s_row_lbl[0]) {
-            snprintf(buf, sizeof(buf), "%s %s %d/%d°C", ICO(CMP_NOZZLE), L_NOZZLE,
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_NOZZLE | BAMBU_VALID_NOZZLE_TARGET, "%s %s %d/%d°C", ICO(CMP_NOZZLE), L_NOZZLE,
                      (int)st->nozzle_temp, (int)st->nozzle_target);
             lv_label_set_text(s_row_lbl[0], buf);
         }
         if (s_row_lbl[1]) {
-            snprintf(buf, sizeof(buf), "%s %s %d/%d°C", ICO(CMP_BED), L_BED,
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_BED | BAMBU_VALID_BED_TARGET, "%s %s %d/%d°C", ICO(CMP_BED), L_BED,
                      (int)st->bed_temp, (int)st->bed_target);
             lv_label_set_text(s_row_lbl[1], buf);
         }
         if (s_row_lbl[2]) {
-            snprintf(buf, sizeof(buf), "%s %s %d°C", ICO(CMP_CHAMBER), L_CHAMBER,
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_CHAMBER, "%s %s %d°C", ICO(CMP_CHAMBER), L_CHAMBER,
                      (int)st->chamber_temp);
             lv_label_set_text(s_row_lbl[2], buf);
         }
         if (s_row_lbl[3]) {
-            snprintf(buf, sizeof(buf), "%s %s %d %d%%", ICO(CMP_SPEED), L_SPEED,
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_SPEED | BAMBU_VALID_SPEED_LEVEL, "%s %s %d %d%%", ICO(CMP_SPEED), L_SPEED,
                      st->spd_lvl, st->spd_mag);
             lv_label_set_text(s_row_lbl[3], buf);
         }
@@ -417,12 +422,12 @@ void style_cyber_update(void) {
     if (s_page == 1) {
         for (int i = 0; i < 5; i++) {
             if (!s_ams_lbl[i]) continue;
-            if (i < 4 && i >= st->ams_count) continue;
+
             bambu_ams_tray_t *t = (i < 4) ? &st->trays[i] : &st->vt_tray;
 
             if (t->type[0]) {
-                if (i < 4) snprintf(buf, sizeof(buf), "#%d %s %d%%", i + 1, t->type, (int)t->remain);
-                else       snprintf(buf, sizeof(buf), "%s %s %d%%", L_EXT, t->type, (int)t->remain);
+                if (i < 4) ui_monitor_tray_printf(buf, sizeof(buf), t, "#%d %s %d%%", i + 1, t->type, (int)t->remain);
+                else       ui_monitor_tray_printf(buf, sizeof(buf), t, "%s %s %d%%", L_EXT, t->type, (int)t->remain);
             } else {
                 if (i < 4) snprintf(buf, sizeof(buf), "#%d %s", i + 1, L_EMPTY);
                 else       snprintf(buf, sizeof(buf), "%s %s", L_EXT, L_EMPTY);

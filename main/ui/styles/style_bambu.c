@@ -1,14 +1,14 @@
-// main/ui/style_bambu.c —— 风格1: 拓竹原厂工业风
+// main/ui/styles/style_bambu.c —— 风格1: 拓竹原厂工业风
 // 布局: Page0 = 圆环进度仪表 (lv_arc) + 图标状态行 + 2x2 数据格子 (内容由 CFG_COMPONENT_ORDER 决定)
 //       Page1 = 拓竹同款 AMS 料槽格子 (背景=耗材真实颜色, 亮度对比度自动黑白字)
 // 翻页策略: 两页卡片同时创建, 翻页只切换显示/隐藏 (不 destroy/rebuild)
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
-#include "../bambu_state.h"
-#include "../bambu_mqtt.h"
-#include "../config.h"
-#include "../app_config.h"
+#include "bambu_state.h"
+#include "bambu_mqtt.h"
+#include "config.h"
+#include "app_config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -98,7 +98,8 @@ static const char *state_text(bambu_print_state_t s) {
         case BAMBU_STATE_FINISH:  return L_STATE_FINISH;
         case BAMBU_STATE_FAILED:  return L_STATE_FAILED;
         case BAMBU_STATE_PREPARE: return L_STATE_PREPARE;
-        default:                  return L_STATE_IDLE;
+        case BAMBU_STATE_IDLE: return L_STATE_IDLE;
+        default: return "--";
     }
 }
 
@@ -165,23 +166,23 @@ static uint32_t cmp_color(int cmp, const ui_theme_colors_t *c) {
 static void cmp_value(char *buf, size_t n, int cmp, const bambu_state_t *st) {
     switch (cmp) {
         case CMP_NOZZLE:
-            snprintf(buf, n, "%d/%d°C", (int)st->nozzle_temp, (int)st->nozzle_target); break;
+            ui_monitor_printf(buf, n, BAMBU_VALID_NOZZLE | BAMBU_VALID_NOZZLE_TARGET, "%d/%d°C", (int)st->nozzle_temp, (int)st->nozzle_target); break;
         case CMP_BED:
-            snprintf(buf, n, "%d/%d°C", (int)st->bed_temp, (int)st->bed_target); break;
+            ui_monitor_printf(buf, n, BAMBU_VALID_BED | BAMBU_VALID_BED_TARGET, "%d/%d°C", (int)st->bed_temp, (int)st->bed_target); break;
         case CMP_CHAMBER:
-            snprintf(buf, n, "%d°C", (int)st->chamber_temp); break;
+            ui_monitor_printf(buf, n, BAMBU_VALID_CHAMBER, "%d°C", (int)st->chamber_temp); break;
         case CMP_LAYER:
-            snprintf(buf, n, "%d/%d", st->layer_num, st->total_layer); break;
+            ui_monitor_printf(buf, n, BAMBU_VALID_LAYER | BAMBU_VALID_TOTAL_LAYER, "%d/%d", st->layer_num, st->total_layer); break;
         case CMP_SPEED:
-            snprintf(buf, n, "%d%%", st->spd_mag); break;
+            ui_monitor_printf(buf, n, BAMBU_VALID_SPEED, "%d%%", st->spd_mag); break;
         case CMP_REMAIN:
             if (st->mc_remaining > 0)
-                snprintf(buf, n, "%dh%02dm", st->mc_remaining / 60, st->mc_remaining % 60);
+                ui_monitor_printf(buf, n, BAMBU_VALID_REMAIN, "%dh%02dm", st->mc_remaining / 60, st->mc_remaining % 60);
             else
                 snprintf(buf, n, "--");
             break;
         case CMP_PERCENT:
-            snprintf(buf, n, "%d%%", st->mc_percent); break;
+            ui_monitor_printf(buf, n, BAMBU_VALID_PROGRESS, "%d%%", st->mc_percent); break;
         default:
             snprintf(buf, n, "--"); break;
     }
@@ -296,6 +297,7 @@ static void build_page1(void) {
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->accent);
+    ui_monitor_bind_filament_title(ams_t);
     if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s", LV_SYMBOL_SD_CARD, L_AMS);
 
     // 格子初始背景 = 主题边框色, 文字取其对比色 (有料时 update 会按耗材颜色重算)
@@ -369,6 +371,7 @@ void style_bambu_build(void) {
     const uint32_t ftxt = ui_theme_on_color(c->footer_bg);
 
     lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, L_FONT_TEXT, htxt);
+    ui_monitor_bind_printer_title(title);
     if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
 
     s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, htxt);
@@ -389,11 +392,13 @@ void style_bambu_build(void) {
     lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, L_FONT_TEXT, ftxt);
+    ui_monitor_bind_nav_label(nav);
     if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
 
     char pg[16];
     snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
     s_pg_lbl = mk_lbl(footer, pg, L_FONT_NUM, ftxt);
+    ui_monitor_bind_page_label(s_pg_lbl);
     if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
 
     // ── 内容区域容器 ──
@@ -427,7 +432,7 @@ void style_bambu_build(void) {
 // 更新 (每秒调用)
 // ---------------------------------------------------------------------------
 void style_bambu_update(void) {
-    bambu_state_t *st = &g_bambu_state;
+    bambu_state_t *st = ui_monitor_state();
     const ui_theme_colors_t *c = ui_theme_get_colors();
     char buf[48];
 
@@ -457,14 +462,14 @@ void style_bambu_update(void) {
     if (s_page == 0) {
         if (s_arc) lv_arc_set_value(s_arc, st->mc_percent);
         if (s_pct_lbl) {
-            snprintf(buf, sizeof(buf), "%d%%", st->mc_percent);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_PROGRESS, "%d%%", st->mc_percent);
             lv_label_set_text(s_pct_lbl, buf);
         }
         // 状态: 图标与文字同色 (未连接时统一显示 WiFi 图标 + error 色)
         if (s_state_lbl) {
-            bool conn = bambu_mqtt_connected();
+            bool conn = ui_monitor_data_ready();
             uint32_t sc = conn ? state_color(st->state, c) : c->error;
-            lv_label_set_text(s_state_lbl, conn ? state_text(st->state) : L_CONNECTING);
+            lv_label_set_text(s_state_lbl, conn ? state_text(st->state) : ui_monitor_connection_text());
             lv_obj_set_style_text_color(s_state_lbl, lv_color_hex(sc), 0);
             if (s_state_icon) {
                 lv_label_set_text(s_state_icon,
@@ -484,7 +489,7 @@ void style_bambu_update(void) {
     if (s_page == 1) {
         for (int i = 0; i < 5; i++) {
             if (!s_ams_box[i] || !s_ams_type[i]) continue;
-            if (i < 4 && i >= st->ams_count) continue;   // 未上报的料槽保持空槽
+
             bambu_ams_tray_t *t = (i < 4) ? &st->trays[i] : &st->vt_tray;
             uint32_t rgb = tray_rgb(t->color);
 
@@ -514,7 +519,7 @@ void style_bambu_update(void) {
             }
             lv_label_set_text(s_ams_type[i], t->type);
             if (s_ams_rem[i]) {
-                snprintf(buf, sizeof(buf), "%d%%", (int)t->remain);
+                ui_monitor_tray_printf(buf, sizeof(buf), t, "%d%%", (int)t->remain);
                 lv_label_set_text(s_ams_rem[i], buf);
             }
         }

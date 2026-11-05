@@ -12,12 +12,17 @@
 #include "ui_theme.h"
 #include "ui_lang.h"
 #include "ui_settings.h"
-#include "../app_config.h"
-#include "../bambu_state.h"
-#include "../bambu_mqtt.h"
+#include "ui_filament.h"
+#include "bambu_pages.h"
+#include "app_config.h"
+#include "bambu_state.h"
+#include "bambu_mqtt.h"
 
 #include "lvgl.h"
 #include "esp_log.h"
+#include "esp_timer.h"
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 
 static const char *TAG = "ui_monitor";
@@ -26,6 +31,87 @@ lv_obj_t *s_scr = NULL;
 static lv_timer_t *s_refresh_timer = NULL;
 lv_obj_t *s_content_area  = NULL;   // 内容容器
 static lv_obj_t *s_setup_overlay = NULL;   // 首次使用配置指引卡 (NULL=未显示)
+static bambu_state_t s_frame;
+static int s_page;
+static int s_page_device_id = -1;
+static uint32_t s_auto_request_ms;
+static lv_obj_t *s_page_label, *s_filament_title, *s_notice, *s_notice_label;
+static lv_obj_t *s_nav_label;
+static lv_obj_t *s_printer_title;
+
+bambu_state_t *ui_monitor_state(void) { return &s_frame; }
+int ui_monitor_current_page(void) { return s_page; }
+int ui_monitor_page_count(void) { return bambu_pages_count(&s_frame); }
+void ui_monitor_bind_page_label(lv_obj_t *l) { s_page_label = l; }
+void ui_monitor_bind_nav_label(lv_obj_t *l) { s_nav_label = l; }
+void ui_monitor_settings_chrome(const char *hint, int row, int count) {
+    if (s_content_area) lv_obj_add_flag(s_content_area, LV_OBJ_FLAG_HIDDEN);
+    ui_filament_hide();
+    if (s_notice) lv_obj_add_flag(s_notice, LV_OBJ_FLAG_HIDDEN);
+    if (s_nav_label) {
+        lv_obj_set_width(s_nav_label, 184);
+        lv_label_set_long_mode(s_nav_label, LV_LABEL_LONG_DOT);
+        lv_label_set_text(s_nav_label, hint);
+    }
+    if (s_page_label) lv_label_set_text_fmt(s_page_label, "%d/%d", row + 1, count);
+}
+void ui_monitor_bind_filament_title(lv_obj_t *l) { s_filament_title = l; }
+void ui_monitor_bind_printer_title(lv_obj_t *l) {
+    s_printer_title = l;
+    if (l) {
+        lv_obj_set_width(l, 76);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    }
+}
+static void update_printer_title(void) {
+    if (s_printer_title) lv_label_set_text(s_printer_title,
+        s_frame.printer_model[0] ? s_frame.printer_model : L_TITLE_BAMBU);
+}
+bool ui_monitor_data_ready(void) {
+    return bambu_mqtt_connected() && bambu_state_fresh(&s_frame, (uint32_t)(esp_timer_get_time() / 1000));
+}
+const char *ui_monitor_connection_text(void) {
+    if (!bambu_mqtt_connected()) return L_DISCONNECTED;
+    return s_frame.data_valid ? L_STALE_DATA : L_WAIT_DATA;
+}
+int ui_monitor_printf(char *out, size_t n, uint32_t fields, const char *fmt, ...) {
+    char unknown[96];
+    if ((s_frame.valid_mask & fields) != fields) {
+        // Keep leading icon/name %s conversions, replace the numeric portion.
+        const char *p = fmt, *cut = fmt;
+        while (*p) {
+            if (*p++ != '%') continue;
+            const char *start = p - 1;
+            if (*p == '%') { ++p; continue; }
+            while (*p && strchr("-+ #0.123456789*hlz", *p)) ++p;
+            if (*p != 's' && *p != 'c') { cut = start; break; }
+            if (*p) ++p;
+        }
+        snprintf(unknown, sizeof(unknown), "%.*s--", (int)(cut - fmt), fmt);
+        fmt = unknown;
+    }
+    va_list args;
+    va_start(args, fmt);
+    int result = vsnprintf(out, n, fmt, args);
+    va_end(args);
+    return result;
+}
+int ui_monitor_tray_printf(char *out, size_t n, const bambu_ams_tray_t *t, const char *fmt, ...) {
+    char unknown[96];
+    if (t->remain < 0) {
+        const char *pct = strstr(fmt, "%d%%");
+        if (pct) {
+            // Remaining percentage is the final conversion in theme formats.
+            snprintf(unknown, sizeof(unknown), "%.*s--%s", (int)(pct - fmt), fmt, pct + 4);
+            fmt = unknown;
+        }
+    }
+    va_list args;
+    va_start(args, fmt);
+    int result = vsnprintf(out, n, fmt, args);
+    va_end(args);
+    return result;
+}
 
 // ---------------------------------------------------------------------------
 // 风格注册表: 全部 12 套风格都编译进固件, 运行时按 app_config.ui_style 选择
@@ -65,6 +151,67 @@ static const style_ops_t *cur_style(void) {
     uint8_t s = app_config_get()->ui_style;
     if (s < 1 || s > 12) s = STYLE_BAMBU;
     return &s_styles[s - 1];
+}
+
+static void refresh_frame(void) {
+    bambu_state_copy(&s_frame);
+    // Selection follows hardware identity, never the order of an MQTT array.
+    if (s_page_device_id >= 0) s_page = bambu_pages_find(&s_frame, s_page_device_id);
+    if (s_page >= bambu_pages_count(&s_frame)) s_page = 0;
+    int idx = bambu_pages_unit(&s_frame, s_page);
+    s_page_device_id = idx >= 0 ? s_frame.units[idx].id : idx == -2 ? 254 : -1;
+    bambu_state_project(&s_frame, idx);
+}
+
+static void render_page(void) {
+    const style_ops_t *style = cur_style();
+    int idx = bambu_pages_unit(&s_frame, s_page);
+    s_page_device_id = idx >= 0 ? s_frame.units[idx].id : idx == -2 ? 254 : -1;
+    bambu_state_project(&s_frame, idx);
+    bool single = idx == -2 || (idx >= 0 && s_frame.units[idx].slot_count == 1);
+    int physical = s_page > 0 && !single ? 1 : 0;
+    if (style->cur_page() != physical) style->next();
+    style->update();
+    update_printer_title();
+    if (single) {
+        lv_obj_add_flag(s_content_area, LV_OBJ_FLAG_HIDDEN);
+        ui_filament_show(&s_frame, idx);
+    } else {
+        lv_obj_clear_flag(s_content_area, LV_OBJ_FLAG_HIDDEN);
+        ui_filament_hide();
+        if (idx >= 0 && s_filament_title) {
+            char title[40];
+            const bambu_ams_unit_t *u = &s_frame.units[idx];
+            snprintf(title, sizeof(title), "%s %d", bambu_ams_kind_name(u->kind), u->id + 1);
+            lv_label_set_text(s_filament_title, title);
+        }
+    }
+    if (s_page_label) lv_label_set_text_fmt(s_page_label, "%d/%d", s_page + 1, bambu_pages_count(&s_frame));
+    if (s_notice) {
+        if (!ui_monitor_data_ready()) {
+            lv_obj_set_pos(s_notice, 8, 34);
+            lv_obj_set_size(s_notice, 224, 252);
+            lv_label_set_text(s_notice_label, ui_monitor_connection_text());
+            lv_obj_center(s_notice_label);
+            lv_obj_clear_flag(s_notice, LV_OBJ_FLAG_HIDDEN);
+            if (!ui_settings_is_open()) lv_obj_move_foreground(s_notice);
+        } else if (s_frame.ams_overflow) {
+            lv_obj_set_pos(s_notice, 8, 266);
+            lv_obj_set_size(s_notice, 224, 20);
+            lv_label_set_text(s_notice_label, L_DEVICE_LIMIT);
+            lv_obj_center(s_notice_label);
+            lv_obj_clear_flag(s_notice, LV_OBJ_FLAG_HIDDEN);
+        } else lv_obj_add_flag(s_notice, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void ui_monitor_restore(void) {
+    if (s_nav_label) {
+        lv_obj_set_width(s_nav_label, LV_SIZE_CONTENT);
+        lv_label_set_text(s_nav_label, L_NAV_HINT);
+    }
+    refresh_frame();
+    render_page();
 }
 
 // ---------------------------------------------------------------------------
@@ -223,6 +370,11 @@ void ui_monitor_show_prov_mode(const char *ap_ssid) {
     s_setup_overlay = ov;  // 记录指针, 让 refresh_timer 跳过背景刷新 + 后续可删除
 }
 
+void ui_monitor_hide_setup(void) {
+    if (s_setup_overlay) { lv_obj_delete(s_setup_overlay); s_setup_overlay = NULL; }
+    ui_monitor_restore();
+}
+
 // ---------------------------------------------------------------------------
 // 定时刷新
 // ---------------------------------------------------------------------------
@@ -236,13 +388,32 @@ static void refresh_timer_cb(lv_timer_t *timer) {
     }
     // 配网指引显示时跳过背景刷新 (省 CPU, 避免看门狗超时)
     if (s_setup_overlay) return;
-    cur_style()->update();
+    refresh_frame();
+    uint32_t now = (uint32_t)(esp_timer_get_time() / 1000);
+    // Idle LAN printers may remain silent. Request a snapshot before the stale
+    // threshold instead of making a healthy idle printer look permanently stale.
+    if (bambu_mqtt_connected() && (uint32_t)(now - s_frame.last_update_ms) >= 30000U &&
+        (uint32_t)(now - s_auto_request_ms) >= 30000U) {
+        s_auto_request_ms = now;
+        bambu_mqtt_pushall();
+    }
+    if (ui_settings_is_open()) {
+        // Keep the native clock/battery alive, then restore the settings footer.
+        cur_style()->update();
+        update_printer_title();
+        ui_settings_refresh();
+        return;
+    }
+    render_page();
 }
 
 // ---------------------------------------------------------------------------
 // 公共接口
 // ---------------------------------------------------------------------------
 void ui_monitor_enter(void) {
+    s_page = 0;
+    s_page_device_id = -1;
+    bambu_state_copy(&s_frame);
     s_scr = lv_obj_create(NULL);
     if (!s_scr) {
         ESP_LOGE(TAG, "屏幕创建失败！内存不足");
@@ -252,6 +423,25 @@ void ui_monitor_enter(void) {
 
     // 由风格 build 函数创建标题栏/底部栏/内容区（使用主题颜色）
     cur_style()->build();
+    ui_filament_create(s_scr);
+    const ui_theme_colors_t *c = ui_theme_get_colors();
+    s_notice = lv_obj_create(s_scr);
+    lv_obj_set_pos(s_notice, 8, 34);
+    lv_obj_set_size(s_notice, 224, 252);
+    lv_obj_set_style_bg_color(s_notice, lv_color_hex(c->card_bg), 0);
+    lv_obj_set_style_bg_opa(s_notice, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(s_notice, 0, 0);
+    lv_obj_set_style_pad_all(s_notice, 12, 0);
+    lv_obj_set_style_radius(s_notice, c->radius, 0);
+    lv_obj_remove_flag(s_notice, LV_OBJ_FLAG_SCROLLABLE);
+    s_notice_label = lv_label_create(s_notice);
+    lv_obj_set_width(s_notice_label, 196);
+    lv_obj_set_style_text_font(s_notice_label, L_FONT_TEXT, 0);
+    lv_obj_set_style_text_color(s_notice_label, lv_color_hex(c->text_primary), 0);
+    lv_obj_set_style_text_align(s_notice_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_center(s_notice_label);
+    refresh_frame();
+    render_page();
 
     s_refresh_timer = lv_timer_create(refresh_timer_cb, 1000, NULL);
     ESP_LOGI(TAG, "监控页面已加载 (style=%s)", ui_theme_style_name());
@@ -267,6 +457,10 @@ void ui_monitor_exit(void) {
         s_scr = NULL;
     }
     s_content_area  = NULL;
+    ui_filament_forget();
+    s_page_label = s_filament_title = s_notice = s_notice_label = NULL;
+    s_nav_label = NULL;
+    s_printer_title = NULL;
 }
 
 void ui_monitor_key(bsp_btn_t btn, bsp_btn_ev_t ev) {
@@ -279,14 +473,19 @@ void ui_monitor_key(bsp_btn_t btn, bsp_btn_ev_t ev) {
 
     switch (btn) {
         case BSP_BTN_UP:
-            cur_style()->prev();
+            refresh_frame();
+            s_page = (s_page + bambu_pages_count(&s_frame) - 1) % bambu_pages_count(&s_frame);
+            render_page();
             break;
         case BSP_BTN_DOWN:
             // 最后一页再向下 → 打开设置页 (亮度/熄屏/重置网络)
-            if (cur_style()->cur_page() >= cur_style()->page_count() - 1)
+            refresh_frame();
+            if (s_page >= bambu_pages_count(&s_frame) - 1)
                 ui_settings_open();
-            else
-                cur_style()->next();
+            else {
+                ++s_page;
+                render_page();
+            }
             break;
         case BSP_BTN_OK:
             bambu_mqtt_pushall();

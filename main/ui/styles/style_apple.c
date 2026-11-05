@@ -1,4 +1,4 @@
-// main/ui/style_apple.c —— 风格12: Apple 风（iOS 浅色分组列表 + systemBlue 强调）
+// main/ui/styles/style_apple.c —— 风格12: Apple 风（iOS 浅色分组列表 + systemBlue 强调）
 //
 // 设计语言 (Apple HIG / apple-design skill):
 //   - iOS Settings 的 inset grouped list: 浅灰底 + 白色圆角卡片, 层级靠卡片分组而非边框
@@ -11,10 +11,10 @@
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
-#include "../bambu_state.h"
-#include "../bambu_mqtt.h"
-#include "../config.h"
-#include "../app_config.h"
+#include "bambu_state.h"
+#include "bambu_mqtt.h"
+#include "config.h"
+#include "app_config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -123,11 +123,12 @@ static lv_obj_t *mk_card(lv_obj_t *p, lv_coord_t x, lv_coord_t y, lv_coord_t w, 
 }
 
 // section header: 卡片外小号灰字 (iOS Settings 的分组标题位)
-static void mk_section(lv_obj_t *p, const char *t, lv_coord_t x, lv_coord_t y) {
-    if (!p) return;
+static lv_obj_t *mk_section(lv_obj_t *p, const char *t, lv_coord_t x, lv_coord_t y) {
+    if (!p) return NULL;
     const ui_theme_colors_t *c = ui_theme_get_colors();
     lv_obj_t *l = mk_lbl(p, t, L_FONT_TEXT, c->text_secondary);
     if (l) lv_obj_set_pos(l, x, y);
+    return l;
 }
 
 // iOS 圆角细进度条 (轨道 systemGray5, 填充随语义色)
@@ -155,7 +156,8 @@ static const char *state_text(bambu_print_state_t s) {
         case BAMBU_STATE_FINISH:  return L_STATE_FINISH;
         case BAMBU_STATE_FAILED:  return L_STATE_FAILED;
         case BAMBU_STATE_PREPARE: return L_STATE_PREPARE;
-        default:                  return L_STATE_IDLE;
+        case BAMBU_STATE_IDLE: return L_STATE_IDLE;
+        default: return "--";
     }
 }
 
@@ -282,7 +284,7 @@ static void build_page1(void) {
     lv_obj_remove_flag(page, LV_OBJ_FLAG_SCROLLABLE);
 
     // 卡片 y24 起: 给 19px 高的 section header 留出空隙, 不与卡片重叠 (同 page0 教训)
-    mk_section(page, L_AMS, CARD_X + 2, 0);
+    ui_monitor_bind_filament_title(mk_section(page, L_AMS, CARD_X + 2, 0));
 
     lv_obj_t *list = mk_card(page, CARD_X, 24, CARD_W, 228);
     if (!list) return;
@@ -362,6 +364,7 @@ void style_apple_build(void) {
     lv_obj_set_style_border_side(header, LV_BORDER_SIDE_BOTTOM, 0);
 
     lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, L_FONT_TEXT, c->text_secondary);
+    ui_monitor_bind_printer_title(title);
     if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
 
     s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM_MID, c->text_primary);
@@ -384,12 +387,14 @@ void style_apple_build(void) {
     lv_obj_set_style_border_side(footer, LV_BORDER_SIDE_TOP, 0);
 
     lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, L_FONT_TEXT, c->text_secondary);
+    ui_monitor_bind_nav_label(nav);
     if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
 
     char pg[16];
     snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
     // 页码用 systemBlue: 强调色只出现在活动位置 (进度条/页码)
     s_pg_lbl = mk_lbl(footer, pg, L_FONT_NUM, c->accent);
+    ui_monitor_bind_page_label(s_pg_lbl);
     if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
 
     // ── 内容区域容器 ──
@@ -421,7 +426,7 @@ void style_apple_build(void) {
 // 更新 (每秒调用)
 // ---------------------------------------------------------------------------
 void style_apple_update(void) {
-    bambu_state_t *st = &g_bambu_state;
+    bambu_state_t *st = ui_monitor_state();
     const ui_theme_colors_t *c = ui_theme_get_colors();
     char buf[48];
 
@@ -450,7 +455,7 @@ void style_apple_update(void) {
     if (s_page == 0) {
         // 大数字进度 + 圆角条
         if (s_pct_lbl) {
-            snprintf(buf, sizeof(buf), "%d%%", st->mc_percent);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_PROGRESS, "%d%%", st->mc_percent);
             lv_label_set_text(s_pct_lbl, buf);
         }
         if (s_bar) lv_bar_set_value(s_bar, st->mc_percent, LV_ANIM_ON);
@@ -465,20 +470,20 @@ void style_apple_update(void) {
 
             switch (cmp) {
                 case CMP_LAYER:
-                    snprintf(buf, sizeof(buf), "%d/%d", st->layer_num, st->total_layer);
+                    ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_LAYER | BAMBU_VALID_TOTAL_LAYER, "%d/%d", st->layer_num, st->total_layer);
                     lv_label_set_text(val, buf); break;
                 case CMP_NOZZLE:
-                    snprintf(buf, sizeof(buf), "%d/%d°C",
+                    ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_NOZZLE | BAMBU_VALID_NOZZLE_TARGET, "%d/%d°C",
                              (int)st->nozzle_temp, (int)st->nozzle_target);
                     lv_label_set_text(val, buf); break;
                 case CMP_BED:
-                    snprintf(buf, sizeof(buf), "%d/%d°C",
+                    ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_BED | BAMBU_VALID_BED_TARGET, "%d/%d°C",
                              (int)st->bed_temp, (int)st->bed_target);
                     lv_label_set_text(val, buf); break;
                 case CMP_CHAMBER:
                     // 无腔体传感器机型 (P1/A1) 或未收到上报时恒 0, 显示 -- 更诚实
-                    if (st->chamber_temp <= 0.0f) snprintf(buf, sizeof(buf), "--");
-                    else                          snprintf(buf, sizeof(buf), "%d°C", (int)st->chamber_temp);
+                    if (!(st->valid_mask & BAMBU_VALID_CHAMBER)) snprintf(buf, sizeof(buf), "--");
+                    else                          ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_CHAMBER, "%d°C", (int)st->chamber_temp);
                     lv_label_set_text(val, buf); break;
                 case CMP_REMAIN:
                     if (st->mc_remaining > 0) {
@@ -489,9 +494,9 @@ void style_apple_update(void) {
                     lv_label_set_text(val, buf); break;
                 case CMP_STATE: {
                     // MQTT 未连接时显示 Connecting, 否则显示打印状态 (图标随状态变化)
-                    bool conn = bambu_mqtt_connected();
+                    bool conn = ui_monitor_data_ready();
                     snprintf(buf, sizeof(buf), "%s",
-                             conn ? state_text(st->state) : L_CONNECTING);
+                             conn ? state_text(st->state) : ui_monitor_connection_text());
                     lv_label_set_text(val, buf);
                     // 状态色由实时数据驱动 (左标签图标随右值同步变色)
                     uint32_t sc = c->text_secondary;
@@ -509,7 +514,7 @@ void style_apple_update(void) {
                     break;
                 }
                 case CMP_SPEED:
-                    snprintf(buf, sizeof(buf), "%d %d%%", st->spd_lvl, st->spd_mag);
+                    ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_SPEED | BAMBU_VALID_SPEED_LEVEL, "%d %d%%", st->spd_lvl, st->spd_mag);
                     lv_label_set_text(val, buf); break;
             }
             row++;
@@ -520,7 +525,7 @@ void style_apple_update(void) {
     if (s_page == 1) {
         for (int i = 0; i < 5; i++) {
             if (!s_ams_lbl[i]) continue;
-            if (i < 4 && i >= st->ams_count) continue;   // 未上报的料槽保持原样
+
             bambu_ams_tray_t *t = (i < 4) ? &st->trays[i] : &st->vt_tray;
             char name[8];
             if (i < 4) snprintf(name, sizeof(name), "#%d", i + 1);
@@ -529,7 +534,7 @@ void style_apple_update(void) {
                 snprintf(buf, sizeof(buf), "%s %s", name, t->type);
                 if (s_ams_val[i]) {
                     char vb[12];
-                    snprintf(vb, sizeof(vb), "%d%%", (int)t->remain);
+                    ui_monitor_tray_printf(vb, sizeof(vb), t, "%d%%", (int)t->remain);
                     lv_label_set_text(s_ams_val[i], vb);
                 }
                 if (s_ams_bar[i]) lv_bar_set_value(s_ams_bar[i], t->remain, LV_ANIM_OFF);

@@ -2,8 +2,10 @@
 #pragma once
 
 #include "bsp_button.h"
-#include "../config.h"
+#include "config.h"
 #include "lvgl.h"
+#include "bambu_state.h"
+#include <stddef.h>
 
 // 屏幕对象（由 ui_monitor_enter 创建，风格文件共享）
 extern lv_obj_t *s_scr;
@@ -21,9 +23,27 @@ void ui_monitor_show_setup_hint(void);
 
 // 进入配网模式后调用: 叠加全屏配网指引卡 (热点名 + 网页地址, 不可撤除)
 void ui_monitor_show_prov_mode(const char *ap_ssid);
+void ui_monitor_hide_setup(void);
 
 // 框架函数（风格文件调用以重建页面）
 void rebuild_page(void);
+
+// A coherent, page-projected snapshot used by all themes during one refresh.
+bambu_state_t *ui_monitor_state(void);
+int ui_monitor_current_page(void);
+int ui_monitor_page_count(void);
+void ui_monitor_bind_page_label(lv_obj_t *label);
+void ui_monitor_bind_nav_label(lv_obj_t *label);
+void ui_monitor_settings_chrome(const char *hint, int row, int count);
+void ui_monitor_restore(void);
+void ui_monitor_bind_filament_title(lv_obj_t *label);
+void ui_monitor_bind_printer_title(lv_obj_t *label);
+const char *ui_monitor_connection_text(void);
+bool ui_monitor_data_ready(void);
+int ui_monitor_printf(char *out, size_t size, uint32_t fields, const char *fmt, ...)
+    __attribute__((format(printf, 4, 5)));
+int ui_monitor_tray_printf(char *out, size_t size, const bambu_ams_tray_t *tray, const char *fmt, ...)
+    __attribute__((format(printf, 4, 5)));
 
 // ---------------------------------------------------------------------------
 // 风格接口声明（每个风格文件实现以下函数, 全部编译, 运行时由注册表选择）

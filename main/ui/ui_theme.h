@@ -2,8 +2,8 @@
 #pragma once
 
 #include "lvgl.h"
-#include "../config.h"
-#include "../bambu_state.h"
+#include "config.h"
+#include "bambu_state.h"
 
 typedef struct {
     uint32_t bg;            // 背景色
@@ -25,6 +25,21 @@ typedef struct {
 
 const ui_theme_colors_t *ui_theme_get_colors(void);
 const char *ui_theme_style_name(void);
+
+// Settings share behavior and geometry; themes supply presentation traits.
+typedef struct {
+    uint8_t frame_border;
+    uint8_t row_border;
+    uint8_t row_radius;
+    bool separators;
+    bool hard_shadow;
+    bool flat;
+    bool rank_numbers;
+    bool value_bars;
+} ui_settings_skin_t;
+const ui_settings_skin_t *ui_theme_settings_skin(void);
+uint32_t ui_theme_mix(uint32_t foreground, uint32_t background, unsigned percent);
+uint32_t ui_theme_readable(uint32_t preferred, uint32_t background);
 
 // 颜色工具: "RRGGBBAA"/"RRGGBB" hex 字符串 -> lv_color (来自 MQTT tray_color)
 lv_color_t ui_theme_hex_color(const char *hex);

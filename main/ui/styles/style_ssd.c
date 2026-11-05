@@ -1,4 +1,4 @@
-// main/ui/style_ssd.c —— 风格8: 2.5 寸固态硬盘标签风 (参照实物盘面)
+// main/ui/styles/style_ssd.c —— 风格8: 2.5 寸固态硬盘标签风 (参照实物盘面)
 //   Page0 = 黑色标签: 品牌行 + 右侧规格三行 + 容量式大字 + 条码/二维码 + 规格表
 //   Page1 = SMART 信息表: AMS 料槽类型/余量横条
 // 盘身哑光黑, 四角金铜螺丝 + 右缘 SATA 金手指装饰, 底栏嵌活动指示灯
@@ -6,9 +6,9 @@
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
-#include "../bambu_state.h"
-#include "../bambu_mqtt.h"
-#include "../config.h"
+#include "bambu_state.h"
+#include "bambu_mqtt.h"
+#include "config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -84,7 +84,8 @@ static const char *state_text(bambu_print_state_t s) {
         case BAMBU_STATE_FINISH:  return L_STATE_FINISH;
         case BAMBU_STATE_FAILED:  return L_STATE_FAILED;
         case BAMBU_STATE_PREPARE: return L_STATE_PREPARE;
-        default:                  return L_STATE_IDLE;
+        case BAMBU_STATE_IDLE: return L_STATE_IDLE;
+        default: return "--";
     }
 }
 
@@ -205,6 +206,7 @@ static void build_page1(void) {
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->text_primary);
+    ui_monitor_bind_filament_title(ams_t);
     if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s SMART", LV_SYMBOL_SD_CARD, L_AMS);
     // 金色分隔线 (标签印刷强调线, 呼应螺丝/金手指)
     mk_block(card, 0, 24, 204, 2, c->accent);
@@ -289,6 +291,7 @@ void style_ssd_build(void) {
     const uint32_t ftxt = ui_theme_on_color(c->footer_bg);
 
     lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, L_FONT_TEXT, htxt);
+    ui_monitor_bind_printer_title(title);
     if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
 
     s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, htxt);
@@ -311,6 +314,7 @@ void style_ssd_build(void) {
     lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, L_FONT_TEXT, ftxt);
+    ui_monitor_bind_nav_label(nav);
     if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
 
     // 活动指示灯: SSD 盘面的状态 LED, 打印运行时闪烁, 空闲熄灭
@@ -323,6 +327,7 @@ void style_ssd_build(void) {
     char pg[16];
     snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
     s_pg_lbl = mk_lbl(footer, pg, L_FONT_NUM, ftxt);
+    ui_monitor_bind_page_label(s_pg_lbl);
     if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
 
     // ── 内容区域容器 ──
@@ -366,7 +371,7 @@ void style_ssd_build(void) {
 // 更新 (每秒调用)
 // ---------------------------------------------------------------------------
 void style_ssd_update(void) {
-    bambu_state_t *st = &g_bambu_state;
+    bambu_state_t *st = ui_monitor_state();
     const ui_theme_colors_t *c = ui_theme_get_colors();
     char buf[48];
 
@@ -392,19 +397,19 @@ void style_ssd_update(void) {
         lv_obj_set_style_text_color(s_bat_lbl, lv_color_hex(ui_theme_battery_color(soc)), 0);
     }
 
-    bool conn = bambu_mqtt_connected();
+    bool conn = ui_monitor_data_ready();
 
     // ── Page 0: 徽章 + 大字 + 规格表 ──
     if (s_page == 0) {
         if (s_pct_lbl) {
-            snprintf(buf, sizeof(buf), "%d%%", st->mc_percent);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_PROGRESS, "%d%%", st->mc_percent);
             lv_label_set_text(s_pct_lbl, buf);
         }
 
         // 状态文字: 颜色随打印状态语义变化 (断连显示正在连接)
         if (s_state_lbl) {
             uint32_t col = conn ? state_color(st->state, c) : c->error;
-            const char *txt = conn ? state_text(st->state) : L_CONNECTING;
+            const char *txt = conn ? state_text(st->state) : ui_monitor_connection_text();
             if (strcmp(lv_label_get_text(s_state_lbl), txt) != 0)
                 lv_label_set_text(s_state_lbl, txt);
             lv_obj_set_style_text_color(s_state_lbl, lv_color_hex(col), 0);
@@ -412,16 +417,16 @@ void style_ssd_update(void) {
 
         // 规格表数值列
         if (s_row_val[0])
-            snprintf(buf, sizeof(buf), "%d/%d°C", (int)st->nozzle_temp, (int)st->nozzle_target);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_NOZZLE | BAMBU_VALID_NOZZLE_TARGET, "%d/%d°C", (int)st->nozzle_temp, (int)st->nozzle_target);
         if (s_row_val[0]) lv_label_set_text(s_row_val[0], buf);
         if (s_row_val[1])
-            snprintf(buf, sizeof(buf), "%d/%d°C", (int)st->bed_temp, (int)st->bed_target);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_BED | BAMBU_VALID_BED_TARGET, "%d/%d°C", (int)st->bed_temp, (int)st->bed_target);
         if (s_row_val[1]) lv_label_set_text(s_row_val[1], buf);
         if (s_row_val[2])
-            snprintf(buf, sizeof(buf), "%d°C", (int)st->chamber_temp);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_CHAMBER, "%d°C", (int)st->chamber_temp);
         if (s_row_val[2]) lv_label_set_text(s_row_val[2], buf);
         if (s_row_val[3])
-            snprintf(buf, sizeof(buf), "%d/%d", st->layer_num, st->total_layer);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_LAYER | BAMBU_VALID_TOTAL_LAYER, "%d/%d", st->layer_num, st->total_layer);
         if (s_row_val[3]) lv_label_set_text(s_row_val[3], buf);
         if (s_row_val[4]) {
             if (st->mc_remaining > 0) {
@@ -440,11 +445,11 @@ void style_ssd_update(void) {
     if (s_page == 1) {
         for (int i = 0; i < 5; i++) {
             if (!s_ams_lbl[i]) continue;
-            if (i < 4 && i >= st->ams_count) continue;
+
             bambu_ams_tray_t *t = (i < 4) ? &st->trays[i] : &st->vt_tray;
             if (t->type[0]) {
-                if (i < 4) snprintf(buf, sizeof(buf), "#%d %s %d%%", i + 1, t->type, (int)t->remain);
-                else       snprintf(buf, sizeof(buf), "%s %s %d%%", L_EXT, t->type, (int)t->remain);
+                if (i < 4) ui_monitor_tray_printf(buf, sizeof(buf), t, "#%d %s %d%%", i + 1, t->type, (int)t->remain);
+                else       ui_monitor_tray_printf(buf, sizeof(buf), t, "%s %s %d%%", L_EXT, t->type, (int)t->remain);
             } else {
                 if (i < 4) snprintf(buf, sizeof(buf), "#%d %s", i + 1, L_EMPTY);
                 else       snprintf(buf, sizeof(buf), "%s %s", L_EXT, L_EMPTY);

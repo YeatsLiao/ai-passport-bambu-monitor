@@ -1,13 +1,13 @@
-// main/ui/style_gauge.c —— 风格10: 图形仪表盘风 (参考 BambuHelper 视觉)
+// main/ui/styles/style_gauge.c —— 风格10: 图形仪表盘风 (参考 BambuHelper 视觉)
 // 布局: Page0 = 顶部细进度条 + 6 个 270° 圆弧仪表环 (2×3 网格) + ETA/任务名
 //       Page1 = AMS 耗材竖条电池 (填充高度=余量, 颜色=实时耗材色) + ETA/任务信息
 // 翻页策略: 两页卡片同时创建, 翻页只切换显示/隐藏 (不 destroy/rebuild)
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
-#include "../bambu_state.h"
-#include "../bambu_mqtt.h"
-#include "../config.h"
+#include "bambu_state.h"
+#include "bambu_mqtt.h"
+#include "config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -88,7 +88,8 @@ static const char *state_text(bambu_print_state_t s) {
         case BAMBU_STATE_FINISH:  return L_STATE_FINISH;
         case BAMBU_STATE_FAILED:  return L_STATE_FAILED;
         case BAMBU_STATE_PREPARE: return L_STATE_PREPARE;
-        default:                  return L_STATE_IDLE;
+        case BAMBU_STATE_IDLE: return L_STATE_IDLE;
+        default: return "--";
     }
 }
 
@@ -101,7 +102,7 @@ static uint32_t state_color(bambu_print_state_t s, const ui_theme_colors_t *c) {
 
 // ETA 文本: 当前时间 + 剩余分钟 -> "14:15"; 无剩余时间时 "--:--"
 static void eta_text(char *buf, size_t len) {
-    const bambu_state_t *st = &g_bambu_state;
+    const bambu_state_t *st = ui_monitor_state();
     if (st->mc_remaining <= 0) {
         snprintf(buf, len, "--:--");
         return;
@@ -232,6 +233,7 @@ static void build_page1(void) {
     s_fan_cham1 = mk_lbl(card, "", L_FONT_TEXT, c->text_secondary);
     if (s_fan_cham1) lv_obj_align(s_fan_cham1, LV_ALIGN_TOP_RIGHT, 0, 0);
     s_layer_lbl = mk_lbl(card, "--/--", L_FONT_TEXT, c->text_secondary);
+    ui_monitor_bind_filament_title(s_layer_lbl);
     if (s_layer_lbl) lv_label_set_text_fmt(s_layer_lbl, "%s --/--", L_LAYER);
     if (s_layer_lbl) lv_obj_align(s_layer_lbl, LV_ALIGN_TOP_LEFT, 0, 22);
     s_eta2_lbl = mk_lbl(card, "ETA --:--", L_FONT_NUM_BIG, c->accent);
@@ -322,6 +324,7 @@ void style_gauge_build(void) {
     lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, L_FONT_TEXT, c->accent);
+    ui_monitor_bind_printer_title(title);
     if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
 
     s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, c->accent);
@@ -343,11 +346,13 @@ void style_gauge_build(void) {
     lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, L_FONT_TEXT, c->accent);
+    ui_monitor_bind_nav_label(nav);
     if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
 
     char pg[16];
     snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
     s_pg_lbl = mk_lbl(footer, pg, L_FONT_NUM, c->accent);
+    ui_monitor_bind_page_label(s_pg_lbl);
     if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
 
     // ── 内容区域容器 ──
@@ -374,7 +379,7 @@ void style_gauge_build(void) {
 // 更新 (每秒调用)
 // ---------------------------------------------------------------------------
 void style_gauge_update(void) {
-    bambu_state_t *st = &g_bambu_state;
+    bambu_state_t *st = ui_monitor_state();
     const ui_theme_colors_t *c = ui_theme_get_colors();
     char buf[48], buf2[24];
 
@@ -401,7 +406,7 @@ void style_gauge_update(void) {
 
     // 状态行 (图标随状态变化, 颜色语义化)
     if (s_state_lbl) {
-        bool conn = bambu_mqtt_connected();
+        bool conn = ui_monitor_data_ready();
         uint32_t sc = conn ? state_color(st->state, c) : c->error;
         if (conn) snprintf(buf, sizeof(buf), "%s %s",
                            ui_theme_state_icon(st->state, true), state_text(st->state));
@@ -424,8 +429,8 @@ void style_gauge_update(void) {
     // 风扇行 (两页): 模型风扇 = cooling_fan, 腔体风扇 = big_fan1 (空闲/未打印时如实显示 0%)
     {
         char fp[40], fc[40];
-        snprintf(fp, sizeof(fp), "%s %d%%", L_PART_FAN,    st->cooling_fan);
-        snprintf(fc, sizeof(fc), "%s %d%%", L_CHAMBER_FAN, st->big_fan1);
+        ui_monitor_printf(fp, sizeof(fp), BAMBU_VALID_COOLING, "%s %d%%", L_PART_FAN,    st->cooling_fan);
+        ui_monitor_printf(fc, sizeof(fc), BAMBU_VALID_CHAMBER_FAN, "%s %d%%", L_CHAMBER_FAN, st->big_fan2);
         if (s_fan_part0) lv_label_set_text(s_fan_part0, fp);
         if (s_fan_cham0) lv_label_set_text(s_fan_cham0, fc);
         if (s_fan_part1) lv_label_set_text(s_fan_part1, fp);
@@ -442,40 +447,40 @@ void style_gauge_update(void) {
         }
         // 环1 进度: 值=mc_percent, 中心=纯数字, 副行=剩余时间/百分号
         if (st->mc_remaining > 0)
-            snprintf(buf2, sizeof(buf2), "%dh%02dm", st->mc_remaining / 60, st->mc_remaining % 60);
+            ui_monitor_printf(buf2, sizeof(buf2), BAMBU_VALID_REMAIN, "%dh%02dm", st->mc_remaining / 60, st->mc_remaining % 60);
         else
             snprintf(buf2, sizeof(buf2), "%%");
-        snprintf(buf, sizeof(buf), "%d", st->mc_percent);
+        ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_PROGRESS, "%d", st->mc_percent);
         upd_gauge(&s_g[0], st->mc_percent, buf, buf2);
 
         // 环2 喷嘴: 值=当前/目标, 中心=当前温度, 副行=/目标 (无目标时显示单位)
         int nz = (st->nozzle_target > 1) ? (int)(100 * st->nozzle_temp / st->nozzle_target) : 0;
-        snprintf(buf, sizeof(buf), "%d", (int)st->nozzle_temp);
-        if (st->nozzle_target > 0) snprintf(buf2, sizeof(buf2), "/%d", (int)st->nozzle_target);
+        ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_NOZZLE, "%d", (int)st->nozzle_temp);
+        if (st->nozzle_target > 0) ui_monitor_printf(buf2, sizeof(buf2), BAMBU_VALID_NOZZLE_TARGET, "/%d", (int)st->nozzle_target);
         else                       snprintf(buf2, sizeof(buf2), "°C");
         upd_gauge(&s_g[1], nz, buf, buf2);
 
         // 环3 热床: 同喷嘴
         int bd = (st->bed_target > 1) ? (int)(100 * st->bed_temp / st->bed_target) : 0;
-        snprintf(buf, sizeof(buf), "%d", (int)st->bed_temp);
-        if (st->bed_target > 0) snprintf(buf2, sizeof(buf2), "/%d", (int)st->bed_target);
+        ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_BED, "%d", (int)st->bed_temp);
+        if (st->bed_target > 0) ui_monitor_printf(buf2, sizeof(buf2), BAMBU_VALID_BED_TARGET, "/%d", (int)st->bed_target);
         else                    snprintf(buf2, sizeof(buf2), "°C");
         upd_gauge(&s_g[2], bd, buf, buf2);
 
         // 环4 速度: 值=spd_mag, 中心=等级, 副行=百分比
-        snprintf(buf, sizeof(buf), "L%d", st->spd_lvl);
-        snprintf(buf2, sizeof(buf2), "%d%%", st->spd_mag);
+        ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_SPEED_LEVEL, "L%d", st->spd_lvl);
+        ui_monitor_printf(buf2, sizeof(buf2), BAMBU_VALID_SPEED, "%d%%", st->spd_mag);
         upd_gauge(&s_g[3], st->spd_mag, buf, buf2);
 
         // 环5 层数: 值=层/总层, 中心=当前层, 副行=/总层
         int ly = (st->total_layer > 0) ? (100 * st->layer_num / st->total_layer) : 0;
-        snprintf(buf, sizeof(buf), "%d", st->layer_num);
-        snprintf(buf2, sizeof(buf2), "/%d", st->total_layer);
+        ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_LAYER, "%d", st->layer_num);
+        ui_monitor_printf(buf2, sizeof(buf2), BAMBU_VALID_TOTAL_LAYER, "/%d", st->total_layer);
         upd_gauge(&s_g[4], ly, buf, buf2);
 
         // 环6 腔体: 值按 0-60°C 映射, 中心=温度, 副行=°C
         int ch = (int)(100 * st->chamber_temp / 60);
-        snprintf(buf, sizeof(buf), "%d", (int)st->chamber_temp);
+        ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_CHAMBER, "%d", (int)st->chamber_temp);
         upd_gauge(&s_g[5], ch, buf, "°C");
     }
 
@@ -483,7 +488,7 @@ void style_gauge_update(void) {
     if (s_page == 1) {
         // 层数行
         if (s_layer_lbl) {
-            snprintf(buf, sizeof(buf), "%s %d/%d", L_LAYER, st->layer_num, st->total_layer);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_LAYER | BAMBU_VALID_TOTAL_LAYER, "%s %d/%d", L_LAYER, st->layer_num, st->total_layer);
             lv_label_set_text(s_layer_lbl, buf);
         }
         for (int i = 0; i < 5; i++) {
@@ -518,7 +523,7 @@ void style_gauge_update(void) {
             if (s_tube_pct[i]) {
                 if (empty) lv_label_set_text(s_tube_pct[i], "--");
                 else {
-                    snprintf(buf, sizeof(buf), "%d%%", (int)t->remain);
+                    ui_monitor_tray_printf(buf, sizeof(buf), t, "%d%%", (int)t->remain);
                     lv_label_set_text(s_tube_pct[i], buf);
                 }
             }

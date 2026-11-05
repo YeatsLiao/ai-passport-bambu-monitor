@@ -1,12 +1,12 @@
-// main/ui/style_neon.c —— 风格6: 极简霓虹极客风（哑光黑 + 浅紫/浅青，大圆角）
+// main/ui/styles/style_neon.c —— 风格6: 极简霓虹极客风（哑光黑 + 浅紫/浅青，大圆角）
 // 翻页策略: 两页卡片同时创建, 翻页只切换显示/隐藏 (不 destroy/rebuild)
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
-#include "../bambu_state.h"
-#include "../bambu_mqtt.h"
-#include "../config.h"
-#include "../app_config.h"
+#include "bambu_state.h"
+#include "bambu_mqtt.h"
+#include "config.h"
+#include "app_config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -83,7 +83,8 @@ static const char *state_text(bambu_print_state_t s) {
         case BAMBU_STATE_FINISH:  return L_STATE_FINISH;
         case BAMBU_STATE_FAILED:  return L_STATE_FAILED;
         case BAMBU_STATE_PREPARE: return L_STATE_PREPARE;
-        default:                  return L_STATE_IDLE;
+        case BAMBU_STATE_IDLE: return L_STATE_IDLE;
+        default: return "--";
     }
 }
 
@@ -190,6 +191,7 @@ static void build_page1(void) {
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->accent);
+    ui_monitor_bind_filament_title(ams_t);
     if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s", LV_SYMBOL_SD_CARD, L_AMS);
     for (int i = 0; i < 5; i++) {
         // 色块 (颜色在 update 中由 MQTT 推送的 tray_color 填充)
@@ -235,6 +237,7 @@ void style_neon_build(void) {
     lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, L_FONT_TEXT, c->accent);
+    ui_monitor_bind_printer_title(title);
     if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
 
     s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, c->text_primary);
@@ -258,11 +261,13 @@ void style_neon_build(void) {
     lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, L_FONT_TEXT, c->text_secondary);
+    ui_monitor_bind_nav_label(nav);
     if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
 
     char pg[16];
     snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
     s_pg_lbl = mk_lbl(footer, pg, L_FONT_NUM, c->accent);
+    ui_monitor_bind_page_label(s_pg_lbl);
     if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
 
     // ── 内容区域容器 ──
@@ -293,7 +298,7 @@ void style_neon_build(void) {
 // 更新 (每秒调用)
 // ---------------------------------------------------------------------------
 void style_neon_update(void) {
-    bambu_state_t *st = &g_bambu_state;
+    bambu_state_t *st = ui_monitor_state();
     const ui_theme_colors_t *c = ui_theme_get_colors();
     char buf[48];
 
@@ -326,24 +331,24 @@ void style_neon_update(void) {
             int cmp = s_order[i];
             switch (cmp) {
                 case CMP_PERCENT:
-                    snprintf(buf, sizeof(buf), "%d%%", st->mc_percent);
+                    ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_PROGRESS, "%d%%", st->mc_percent);
                     lv_label_set_text(s_lbl[i], buf);
                     if (s_bar) lv_bar_set_value(s_bar, st->mc_percent, LV_ANIM_ON);
                     break;
                 case CMP_LAYER:
-                    snprintf(buf, sizeof(buf), "%s %s %d/%d",
+                    ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_LAYER | BAMBU_VALID_TOTAL_LAYER, "%s %s %d/%d",
                              ICO(CMP_LAYER), L_LAYER, st->layer_num, st->total_layer);
                     lv_label_set_text(s_lbl[i], buf); break;
                 case CMP_NOZZLE:
-                    snprintf(buf, sizeof(buf), "%s %s %d/%d°C",
+                    ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_NOZZLE | BAMBU_VALID_NOZZLE_TARGET, "%s %s %d/%d°C",
                              ICO(CMP_NOZZLE), L_NOZZLE, (int)st->nozzle_temp, (int)st->nozzle_target);
                     lv_label_set_text(s_lbl[i], buf); break;
                 case CMP_BED:
-                    snprintf(buf, sizeof(buf), "%s %s %d/%d°C",
+                    ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_BED | BAMBU_VALID_BED_TARGET, "%s %s %d/%d°C",
                              ICO(CMP_BED), L_BED, (int)st->bed_temp, (int)st->bed_target);
                     lv_label_set_text(s_lbl[i], buf); break;
                 case CMP_CHAMBER:
-                    snprintf(buf, sizeof(buf), "%s %s %d°C",
+                    ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_CHAMBER, "%s %s %d°C",
                              ICO(CMP_CHAMBER), L_CHAMBER, (int)st->chamber_temp);
                     lv_label_set_text(s_lbl[i], buf); break;
                 case CMP_REMAIN:
@@ -359,7 +364,7 @@ void style_neon_update(void) {
                     lv_label_set_text(s_lbl[i], buf); break;
                 case CMP_STATE: {
                     // MQTT 未连接时显示 Connecting, 否则显示打印状态 (图标随状态变化)
-                    bool conn = bambu_mqtt_connected();
+                    bool conn = ui_monitor_data_ready();
                     if (conn) {
                         snprintf(buf, sizeof(buf), "%s %s",
                                  ui_theme_state_icon(st->state, true), state_text(st->state));
@@ -376,7 +381,7 @@ void style_neon_update(void) {
                     break;
                 }
                 case CMP_SPEED:
-                    snprintf(buf, sizeof(buf), "%s %s %d %d%%",
+                    ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_SPEED | BAMBU_VALID_SPEED_LEVEL, "%s %s %d %d%%",
                              ICO(CMP_SPEED), L_SPEED, st->spd_lvl, st->spd_mag);
                     lv_label_set_text(s_lbl[i], buf); break;
             }
@@ -387,13 +392,13 @@ void style_neon_update(void) {
     if (s_page == 1) {
         for (int i = 0; i < 5; i++) {
             if (!s_ams_lbl[i]) continue;
-            if (i < 4 && i >= st->ams_count) continue;   // 未上报的料槽保持原样
+
             bambu_ams_tray_t *t = (i < 4) ? &st->trays[i] : &st->vt_tray;
             char name[8];
             if (i < 4) snprintf(name, sizeof(name), "#%d", i + 1);
             else       snprintf(name, sizeof(name), "%s", L_EXT);
             if (t->type[0])
-                snprintf(buf, sizeof(buf), "%s %s %d%%", name, t->type, (int)t->remain);
+                ui_monitor_tray_printf(buf, sizeof(buf), t, "%s %s %d%%", name, t->type, (int)t->remain);
             else
                 snprintf(buf, sizeof(buf), "%s %s", name, L_EMPTY);
             lv_label_set_text(s_ams_lbl[i], buf);

@@ -1,4 +1,4 @@
-// main/ui/style_f1.c —— 风格9: F1 转播计时风 (Timing Tower)
+// main/ui/styles/style_f1.c —— 风格9: F1 转播计时风 (Timing Tower)
 // 视觉参照 F1 watchOS 转播包装: 近黑底上悬浮圆角暗卡 + 车队涂装色条 + F1 红点缀
 //   Page0 = LAP 计时塔: 红竖线+LAP+旗黄大字百分比 + 比赛时钟 + LIVE 状态灯
 //           + 进度条 + 5 张圆角行卡 (涂装色条 + 彩色排位号 + 名称 + 右对齐读数)
@@ -7,9 +7,9 @@
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
-#include "../bambu_state.h"
-#include "../bambu_mqtt.h"
-#include "../config.h"
+#include "bambu_state.h"
+#include "bambu_mqtt.h"
+#include "config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -87,7 +87,8 @@ static const char *state_text(bambu_print_state_t s) {
         case BAMBU_STATE_FINISH:  return L_STATE_FINISH;
         case BAMBU_STATE_FAILED:  return L_STATE_FAILED;
         case BAMBU_STATE_PREPARE: return L_STATE_PREPARE;
-        default:                  return L_STATE_IDLE;
+        case BAMBU_STATE_IDLE: return L_STATE_IDLE;
+        default: return "--";
     }
 }
 
@@ -238,6 +239,7 @@ static void build_page1(void) {
     // ── 面板头: 红竖线 + STANDINGS (转播 Drivers 榜位) ──
     mk_block(card, 4, 2, 3, 14, c->accent);
     lv_obj_t *ttl = mk_lbl(card, "STANDINGS", L_FONT_TEXT_BIG, c->text_primary);
+    ui_monitor_bind_filament_title(ttl);
     if (ttl) lv_obj_set_pos(ttl, 14, 0);
 
     memset(s_ams_chip, 0, sizeof(s_ams_chip));
@@ -323,6 +325,7 @@ void style_f1_build(void) {
         if (logo_txt) lv_obj_align(logo_txt, LV_ALIGN_CENTER, 0, 0);
     }
     lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, L_FONT_TEXT, htxt);
+    ui_monitor_bind_printer_title(title);
     if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 40, 0);
 
     s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, htxt);
@@ -343,11 +346,13 @@ void style_f1_build(void) {
     lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, L_FONT_TEXT, ftxt);
+    ui_monitor_bind_nav_label(nav);
     if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 8, 0);
 
     char pg[16];
     snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
     s_pg_lbl = mk_lbl(footer, pg, L_FONT_NUM, ftxt);
+    ui_monitor_bind_page_label(s_pg_lbl);
     if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -10, 0);
 
     // ── 内容区域容器 ──
@@ -381,7 +386,7 @@ void style_f1_build(void) {
 // 更新 (每秒调用)
 // ---------------------------------------------------------------------------
 void style_f1_update(void) {
-    bambu_state_t *st = &g_bambu_state;
+    bambu_state_t *st = ui_monitor_state();
     const ui_theme_colors_t *c = ui_theme_get_colors();
     char buf[48];
 
@@ -407,20 +412,20 @@ void style_f1_update(void) {
         lv_obj_set_style_text_color(s_bat_lbl, lv_color_hex(ui_theme_battery_color(soc)), 0);
     }
 
-    bool conn = bambu_mqtt_connected();
+    bool conn = ui_monitor_data_ready();
 
     // ── Page 0: LIVE 灯 + 进度条 + 大字 + 计时塔 ──
     if (s_page == 0) {
         if (s_prog_bar)
             lv_bar_set_value(s_prog_bar, st->mc_percent, LV_ANIM_OFF);
         if (s_pct_lbl) {
-            snprintf(buf, sizeof(buf), "%d%%", st->mc_percent);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_PROGRESS, "%d%%", st->mc_percent);
             lv_label_set_text(s_pct_lbl, buf);
         }
         // 比赛时钟: 剩余时间, 纯 ASCII (Montserrat 无中文 fallback)
         if (s_clock_lbl) {
             if (st->mc_remaining > 0)
-                snprintf(buf, sizeof(buf), "%dh%02dm",
+                ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_REMAIN, "%dh%02dm",
                          st->mc_remaining / 60, st->mc_remaining % 60);
             else
                 snprintf(buf, sizeof(buf), "--");
@@ -451,19 +456,19 @@ void style_f1_update(void) {
 
         // 计时塔读数列
         if (s_row_val[0]) {
-            snprintf(buf, sizeof(buf), "%d/%d°C", (int)st->nozzle_temp, (int)st->nozzle_target);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_NOZZLE | BAMBU_VALID_NOZZLE_TARGET, "%d/%d°C", (int)st->nozzle_temp, (int)st->nozzle_target);
             lv_label_set_text(s_row_val[0], buf);
         }
         if (s_row_val[1]) {
-            snprintf(buf, sizeof(buf), "%d/%d°C", (int)st->bed_temp, (int)st->bed_target);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_BED | BAMBU_VALID_BED_TARGET, "%d/%d°C", (int)st->bed_temp, (int)st->bed_target);
             lv_label_set_text(s_row_val[1], buf);
         }
         if (s_row_val[2]) {
-            snprintf(buf, sizeof(buf), "%d°C", (int)st->chamber_temp);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_CHAMBER, "%d°C", (int)st->chamber_temp);
             lv_label_set_text(s_row_val[2], buf);
         }
         if (s_row_val[3]) {
-            snprintf(buf, sizeof(buf), "%d/%d", st->layer_num, st->total_layer);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_LAYER | BAMBU_VALID_TOTAL_LAYER, "%d/%d", st->layer_num, st->total_layer);
             lv_label_set_text(s_row_val[3], buf);
         }
         if (s_row_val[4]) {
@@ -483,11 +488,11 @@ void style_f1_update(void) {
     if (s_page == 1) {
         for (int i = 0; i < 5; i++) {
             if (!s_ams_lbl[i]) continue;
-            if (i < 4 && i >= st->ams_count) continue;
+
             bambu_ams_tray_t *t = (i < 4) ? &st->trays[i] : &st->vt_tray;
             if (t->type[0]) {
-                if (i < 4) snprintf(buf, sizeof(buf), "%s %d%%", t->type, (int)t->remain);
-                else       snprintf(buf, sizeof(buf), "%s %s %d%%", L_EXT, t->type, (int)t->remain);
+                if (i < 4) ui_monitor_tray_printf(buf, sizeof(buf), t, "%s %d%%", t->type, (int)t->remain);
+                else       ui_monitor_tray_printf(buf, sizeof(buf), t, "%s %s %d%%", L_EXT, t->type, (int)t->remain);
             } else {
                 snprintf(buf, sizeof(buf), L_EMPTY);
             }

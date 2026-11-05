@@ -2,9 +2,55 @@
 // 全部风格都编译进固件, 运行时由 app_config.ui_style 选择 (配网页可切换)
 #include "ui_theme.h"
 #include "ui_lang.h"
-#include "../app_config.h"
+#include "app_config.h"
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
+
+const ui_settings_skin_t *ui_theme_settings_skin(void) {
+    static const ui_settings_skin_t skins[12] = {
+        {0, 0, 3, true,  false, false, false, false}, // Bambu: light panel, green cursor
+        {1, 1, 2, false, false, false, false, false}, // Cyber: thin cyan frame
+        {1, 0, 2, true,  false, false, false, false}, // Sheikah: blue frame, rune cursor
+        {0, 0, 4, true,  false, false, false, false}, // White: quiet rules
+        {1, 1, 0, false, false, false, true,  false}, // Industrial: square numbered rows
+        {1, 0, 6, false, false, false, false, false}, // Neon: soft dark rows
+        {2, 0, 0, false, true,  false, false, false}, // Pixel: paper, hard ink shadow
+        {1, 0, 0, true,  false, false, false, false}, // SSD: printed label, gold rule
+        {0, 0, 3, false, false, false, true,  false}, // F1: timing rows, red cursor
+        {0, 0, 6, false, false, false, false, true }, // Gauge: compact value tracks
+        {0, 0, 0, true,  false, true,  false, false}, // Geist: typography and hairlines
+        {0, 0, 5, true,  false, false, false, false}, // Apple: inset grouped rows
+    };
+    uint8_t style = app_config_get()->ui_style;
+    return &skins[style >= 1 && style <= 12 ? style - 1 : 0];
+}
+
+uint32_t ui_theme_mix(uint32_t fg, uint32_t bg, unsigned percent) {
+    if (percent > 100) percent = 100;
+    uint32_t result = 0;
+    for (int shift = 0; shift <= 16; shift += 8) {
+        unsigned a = (fg >> shift) & 255, b = (bg >> shift) & 255;
+        result |= ((a * percent + b * (100 - percent) + 50) / 100) << shift;
+    }
+    return result;
+}
+
+static float relative_luminance(uint32_t rgb) {
+    float c[3];
+    for (int i = 0; i < 3; ++i) {
+        float v = ((rgb >> (16 - i * 8)) & 255) / 255.0f;
+        c[i] = v <= 0.04045f ? v / 12.92f : powf((v + 0.055f) / 1.055f, 2.4f);
+    }
+    return c[0] * 0.2126f + c[1] * 0.7152f + c[2] * 0.0722f;
+}
+
+uint32_t ui_theme_readable(uint32_t preferred, uint32_t bg) {
+    float a = relative_luminance(preferred), b = relative_luminance(bg);
+    float ratio = a > b ? (a + 0.05f) / (b + 0.05f) : (b + 0.05f) / (a + 0.05f);
+    if (ratio >= 4.5f) return preferred;
+    return b > 0.179f ? 0x000000 : 0xFFFFFF;
+}
 
 // 风格1: 拓竹原厂工业风 — 深蓝标题 + 白卡片 + 绿进度
 static const ui_theme_colors_t theme_bambu = {
@@ -314,6 +360,8 @@ void ui_theme_tray_swatch(lv_obj_t *swatch, const bambu_ams_tray_t *t) {
             rgb = (uint32_t)strtoul(buf, NULL, 16);
         }
         lv_obj_set_style_bg_opa(swatch, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(swatch, 1, 0);
+        lv_obj_set_style_border_color(swatch, lv_color_hex(c->border), 0);
         lv_obj_set_style_bg_color(swatch, lv_color_hex(rgb), 0);
     }
 }

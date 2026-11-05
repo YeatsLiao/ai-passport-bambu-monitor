@@ -1,4 +1,4 @@
-// main/app_config.h —— 运行时配置 (NVS 持久化 + 编译期默认值)
+// main/config/app_config.h —— 运行时配置 (NVS 持久化 + 编译期默认值)
 //
 // 优先级: NVS 中已保存的配置 > config.h 编译期默认值 > 空白(未配置)。
 // 未配置的固件开机直接进入配网模式 (见 wifi_prov)，用户通过手机网页
@@ -37,6 +37,12 @@ bool app_config_is_provisioned(void);
 
 // 保存配置到 NVS (整体覆盖, 要求网络配置完整)
 esp_err_t app_config_save(const app_config_t *cfg);
+
+// Trial configuration survives reboot; stable network credentials remain intact.
+esp_err_t app_config_stage(const app_config_t *cfg);
+bool app_config_has_trial(void);
+esp_err_t app_config_confirm_trial(void);
+esp_err_t app_config_rollback_trial(void);
 
 // 只保存显示偏好 (风格/语言/亮度/熄屏/组件顺序), 不要求网络配置完整 ——
 // 设备设置页调整亮度/熄屏时使用, 未配网状态也允许调

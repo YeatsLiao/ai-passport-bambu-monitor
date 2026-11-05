@@ -1,4 +1,4 @@
-// main/ui/style_pixel.c —— 风格7: 像素机器人风 (移植自 ai-passport 官网 UI)
+// main/ui/styles/style_pixel.c —— 风格7: 像素机器人风 (移植自 ai-passport 官网 UI)
 //
 // 素材来源: ai-passport 仓库 main/ui_pixel.c + main/ui_pixel.h (同作者的原创像素风)
 // 布局: Page0 = 像素纸牌面板 (墨黑硬投影 + 米白纸牌) + 会眨眼的电视机器人
@@ -9,10 +9,10 @@
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
-#include "../bambu_state.h"
-#include "../bambu_mqtt.h"
-#include "../config.h"
-#include "../app_config.h"
+#include "bambu_state.h"
+#include "bambu_mqtt.h"
+#include "config.h"
+#include "app_config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -236,7 +236,8 @@ static const char *state_text(bambu_print_state_t s) {
         case BAMBU_STATE_FINISH:  return L_STATE_FINISH;
         case BAMBU_STATE_FAILED:  return L_STATE_FAILED;
         case BAMBU_STATE_PREPARE: return L_STATE_PREPARE;
-        default:                  return L_STATE_IDLE;
+        case BAMBU_STATE_IDLE: return L_STATE_IDLE;
+        default: return "--";
     }
 }
 
@@ -280,19 +281,19 @@ static uint32_t cmp_color(int cmp, const ui_theme_colors_t *c) {
 static void cmp_value(char *buf, size_t n, int cmp, const bambu_state_t *st) {
     switch (cmp) {
         case CMP_NOZZLE:
-            snprintf(buf, n, "%d/%d°C", (int)st->nozzle_temp, (int)st->nozzle_target);
+            ui_monitor_printf(buf, n, BAMBU_VALID_NOZZLE | BAMBU_VALID_NOZZLE_TARGET, "%d/%d°C", (int)st->nozzle_temp, (int)st->nozzle_target);
             break;
         case CMP_BED:
-            snprintf(buf, n, "%d/%d°C", (int)st->bed_temp, (int)st->bed_target);
+            ui_monitor_printf(buf, n, BAMBU_VALID_BED | BAMBU_VALID_BED_TARGET, "%d/%d°C", (int)st->bed_temp, (int)st->bed_target);
             break;
         case CMP_CHAMBER:
-            snprintf(buf, n, "%d°C", (int)st->chamber_temp);
+            ui_monitor_printf(buf, n, BAMBU_VALID_CHAMBER, "%d°C", (int)st->chamber_temp);
             break;
         case CMP_LAYER:
-            snprintf(buf, n, "%d/%d", st->layer_num, st->total_layer);
+            ui_monitor_printf(buf, n, BAMBU_VALID_LAYER | BAMBU_VALID_TOTAL_LAYER, "%d/%d", st->layer_num, st->total_layer);
             break;
         case CMP_PERCENT:
-            snprintf(buf, n, "%d%%", st->mc_percent);
+            ui_monitor_printf(buf, n, BAMBU_VALID_PROGRESS, "%d%%", st->mc_percent);
             break;
         case CMP_REMAIN:
             if (st->mc_remaining > 0) {
@@ -305,7 +306,7 @@ static void cmp_value(char *buf, size_t n, int cmp, const bambu_state_t *st) {
             }
             break;
         case CMP_SPEED:
-            snprintf(buf, n, "%d%%", st->spd_mag);
+            ui_monitor_printf(buf, n, BAMBU_VALID_SPEED, "%d%%", st->spd_mag);
             break;
         case CMP_STATE:
             snprintf(buf, n, "%s", state_text(st->state));
@@ -424,6 +425,7 @@ static void build_page1(void) {
     if (!panel) return;
 
     lv_obj_t *ams_t = mk_lbl(panel, "", L_FONT_TEXT_BIG, c->text_primary);
+    ui_monitor_bind_filament_title(ams_t);
     if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s", LV_SYMBOL_SD_CARD, L_AMS);
     block(panel, 0, 28, 192, 2, c->border);
 
@@ -500,6 +502,7 @@ void style_pixel_build(void) {
         lv_obj_set_style_border_color(plate, lv_color_hex(c->border), 0);
         lv_obj_set_style_border_width(plate, 2, 0);
         lv_obj_t *title = mk_lbl(plate, L_TITLE_BAMBU, L_FONT_TEXT, c->text_primary);
+        ui_monitor_bind_printer_title(title);
         if (title) lv_obj_center(title);
     }
 
@@ -525,11 +528,13 @@ void style_pixel_build(void) {
     // 草地上文字按背景亮度自动取色 (草绿 -> 墨字)
     const uint32_t ftxt = ui_theme_on_color(c->footer_bg);
     lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, L_FONT_TEXT, ftxt);
+    ui_monitor_bind_nav_label(nav);
     if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, -3);
 
     char pg[16];
     snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
     s_pg_lbl = mk_lbl(footer, pg, L_FONT_NUM, ftxt);
+    ui_monitor_bind_page_label(s_pg_lbl);
     if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -8, -3);
 
     // ── 内容区域容器 ──
@@ -556,7 +561,7 @@ void style_pixel_build(void) {
 // 更新 (每秒调用)
 // ---------------------------------------------------------------------------
 void style_pixel_update(void) {
-    bambu_state_t *st = &g_bambu_state;
+    bambu_state_t *st = ui_monitor_state();
     const ui_theme_colors_t *c = ui_theme_get_colors();
     char buf[64];
 
@@ -601,12 +606,12 @@ void style_pixel_update(void) {
         if (s_prog) lv_bar_set_value(s_prog, st->mc_percent, LV_ANIM_ON);
 
         if (s_pct_lbl) {
-            snprintf(buf, sizeof(buf), "%d%%", st->mc_percent);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_PROGRESS, "%d%%", st->mc_percent);
             lv_label_set_text(s_pct_lbl, buf);
         }
 
         if (s_state_lbl) {
-            bool conn = bambu_mqtt_connected();
+            bool conn = ui_monitor_data_ready();
             uint32_t sc = conn ? state_color(st->state, c) : c->error;
             if (conn) snprintf(buf, sizeof(buf), "%s %s",
                                ui_theme_state_icon(st->state, true), state_text(st->state));
@@ -627,7 +632,7 @@ void style_pixel_update(void) {
     if (s_page == 1) {
         for (int i = 0; i < 5; i++) {
             if (!s_ams_lbl[i]) continue;
-            if (i < 4 && i >= st->ams_count) continue;
+
             bambu_ams_tray_t *t = (i < 4) ? &st->trays[i] : &st->vt_tray;
 
             if (t->type[0]) {
@@ -644,7 +649,7 @@ void style_pixel_update(void) {
                 lv_obj_set_style_bg_opa(s_ams_hl[i],
                                         t->active ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
             if (s_ams_pct[i]) {
-                snprintf(buf, sizeof(buf), "%d%%", (int)t->remain);
+                ui_monitor_tray_printf(buf, sizeof(buf), t, "%d%%", (int)t->remain);
                 lv_label_set_text(s_ams_pct[i], buf);
             }
             if (s_ams_chip[i]) ui_theme_tray_swatch(s_ams_chip[i], t);

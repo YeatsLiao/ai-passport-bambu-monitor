@@ -1,15 +1,15 @@
-// main/ui/style_sheikah.c —— 风格3: 希卡石板风（深蓝科技 + 青蓝冷光）
-// 布局: Page0 = 希卡之眼 (外装饰环 + 进度弧环 + 菱形瞳孔 + 环内百分比)
-//            + 状态行 + 4 行菱形符文数据 (菱形节点串在一条竖直发光线上)
-//       Page1 = AMS 菱形色片列表 + 每槽发光余量细条
+// main/ui/styles/style_white.c —— 风格4: 纯白素雅风（白底灰字 + 淡蓝提示）
+// 布局: Page0 = 极简大字排版 (顶部状态 + 超大百分比 + 发丝线分区 + 两列小数据)
+//       Page1 = AMS 极简列表 (方形色片 + 类型 + 右对齐余量)
+// 设计语言: 左对齐、大留白、无边框无图标堆砌, 只靠发丝线 (1px) 分区
 // 翻页策略: 两页卡片同时创建, 翻页只切换显示/隐藏 (不 destroy/rebuild)
 #include "ui_monitor.h"
 #include "ui_theme.h"
 #include "ui_lang.h"
-#include "../bambu_state.h"
-#include "../bambu_mqtt.h"
-#include "../config.h"
-#include "../app_config.h"
+#include "bambu_state.h"
+#include "bambu_mqtt.h"
+#include "config.h"
+#include "app_config.h"
 #include "bsp_battery.h"
 
 #include "lvgl.h"
@@ -18,10 +18,10 @@
 #include <string.h>
 #include <time.h>
 
-static const char *TAG __attribute__((unused)) = "style_sheikah";
+static const char *TAG __attribute__((unused)) = "style_white";
 
 #define HAS_AMS  1
-#define RUNE_COUNT  4                 // Page0 符文数据行数
+#define SLOT_COUNT 4                  // Page0 小数据位 (两行 x 两列)
 
 #define CMP_NOZZLE  1
 #define CMP_BED     2
@@ -56,19 +56,17 @@ static int s_total_pages = 1 + HAS_AMS;
 
 static lv_obj_t *s_card[2] = {NULL, NULL};
 
-// Page 0: 希卡之眼 + 符文数据行
-static lv_obj_t *s_arc       = NULL;          // 进度弧环
-static lv_obj_t *s_pupil     = NULL;          // 环内菱形瞳孔 (随状态变色)
-static lv_obj_t *s_pct_lbl   = NULL;          // 环内百分比
-static lv_obj_t *s_state_lbl = NULL;          // 状态行 (图标 + 文字)
-static int       s_rune_cmp[RUNE_COUNT];      // 每行符文对应的组件
-static lv_obj_t *s_rune[RUNE_COUNT];          // 菱形节点
-static lv_obj_t *s_rune_lbl[RUNE_COUNT];      // 图标 + 名称 + 值
+// Page 0
+static lv_obj_t *s_state_lbl = NULL;          // 顶部状态行
+static lv_obj_t *s_pct_lbl   = NULL;          // 超大百分比
+static int       s_slot_cmp[SLOT_COUNT];      // 四个小数据位对应的组件
+static lv_obj_t *s_slot_lbl[SLOT_COUNT];      // 标签 (图标 + 名称)
+static lv_obj_t *s_slot_val[SLOT_COUNT];      // 数值
 
-// Page 1: AMS 列表 (0-3: AMS 槽, 4: 外挂料)
-static lv_obj_t *s_ams_chip[5];               // 菱形色片
-static lv_obj_t *s_ams_lbl[5];                // 类型 + 余量文字
-static lv_obj_t *s_ams_bar[5];                // 余量发光细条
+// Page 1
+static lv_obj_t *s_ams_chip[5];               // 方形色片
+static lv_obj_t *s_ams_lbl[5];                // 类型文字
+static lv_obj_t *s_ams_pct[5];                // 右对齐余量
 
 // 标题栏 / 底部栏
 static lv_obj_t *s_time_lbl = NULL;
@@ -89,30 +87,20 @@ static lv_obj_t *mk_lbl(lv_obj_t *parent, const char *text,
     return l;
 }
 
-// 菱形符文: 旋转 45° 的方块, 以 (cx, cy) 为几何中心。
-// pivot 必须显式设到中心, 否则默认绕左上角旋转会跑位。
-// 注意: 子对象会跟随父对象一起旋转, 所以图标/文字要作为兄弟节点叠上去, 不能塞进来。
-static lv_obj_t *mk_rune(lv_obj_t *parent, int cx, int cy, int size,
-                         uint32_t line, uint32_t fill, lv_opa_t fill_opa) {
+// 发丝线: 素雅风的骨架 —— 不靠边框和阴影, 只用 1px 细线 + 留白分区
+static lv_obj_t *mk_rule(lv_obj_t *parent, int y, int w) {
     if (!parent) return NULL;
+    const ui_theme_colors_t *c = ui_theme_get_colors();
     lv_obj_t *r = lv_obj_create(parent);
     if (!r) return NULL;
-    int half = size / 2;
-    lv_obj_set_pos(r, cx - half, cy - half);
-    lv_obj_set_size(r, size, size);
+    lv_obj_set_pos(r, 0, y);
+    lv_obj_set_size(r, w, 1);
     lv_obj_remove_flag(r, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_radius(r, 0, 0);
+    lv_obj_set_style_border_width(r, 0, 0);
     lv_obj_set_style_pad_all(r, 0, 0);
-    lv_obj_set_style_bg_color(r, lv_color_hex(fill), 0);
-    lv_obj_set_style_bg_opa(r, fill_opa, 0);
-    lv_obj_set_style_border_width(r, 1, 0);
-    lv_obj_set_style_border_color(r, lv_color_hex(line), 0);
-    lv_obj_set_style_shadow_color(r, lv_color_hex(line), 0);
-    lv_obj_set_style_shadow_width(r, 6, 0);
-    lv_obj_set_style_shadow_opa(r, LV_OPA_40, 0);
-    lv_obj_set_style_transform_pivot_x(r, half, 0);
-    lv_obj_set_style_transform_pivot_y(r, half, 0);
-    lv_obj_set_style_transform_rotation(r, 450, 0);   // 45.0°
+    lv_obj_set_style_bg_color(r, lv_color_hex(c->border), 0);
+    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
     return r;
 }
 
@@ -123,7 +111,8 @@ static const char *state_text(bambu_print_state_t s) {
         case BAMBU_STATE_FINISH:  return L_STATE_FINISH;
         case BAMBU_STATE_FAILED:  return L_STATE_FAILED;
         case BAMBU_STATE_PREPARE: return L_STATE_PREPARE;
-        default:                  return L_STATE_IDLE;
+        case BAMBU_STATE_IDLE: return L_STATE_IDLE;
+        default: return "--";
     }
 }
 
@@ -150,46 +139,49 @@ static const char *cmp_name(int cmp) {
     }
 }
 
-// 符文节点颜色: 温度类沿用各自仪表色, 其余用主题强调色
-static uint32_t rune_color(int cmp, const ui_theme_colors_t *c) {
+// 组件编号 -> 数值颜色 (温度类用各自仪表色, 其余用主文字色)
+static uint32_t cmp_color(int cmp, const ui_theme_colors_t *c) {
     switch (cmp) {
         case CMP_NOZZLE:  return c->gauge_nozzle;
         case CMP_BED:     return c->gauge_bed;
         case CMP_CHAMBER: return c->gauge_chamber;
-        default:          return c->accent;
+        default:          return c->text_primary;
     }
 }
 
-// 组件编号 -> 当前数值文本
+// 组件编号 -> 数值文本。
+// 第一行数值用 L_FONT_NUM_MID (纯 Montserrat 20, 无中文 fallback), 所以剩余时间
+// 统一写成 ASCII 的 "1h20m" 而不是 "1时20分": REMAIN 落在哪一行由
+// CFG_COMPONENT_ORDER 决定, 一旦排到第一行中文就会变占位方块。
 static void cmp_value(char *buf, size_t n, int cmp, const bambu_state_t *st) {
     switch (cmp) {
         case CMP_NOZZLE:
-            snprintf(buf, n, "%d/%d°C", (int)st->nozzle_temp, (int)st->nozzle_target);
+            ui_monitor_printf(buf, n, BAMBU_VALID_NOZZLE | BAMBU_VALID_NOZZLE_TARGET, "%d/%d°C", (int)st->nozzle_temp, (int)st->nozzle_target);
             break;
         case CMP_BED:
-            snprintf(buf, n, "%d/%d°C", (int)st->bed_temp, (int)st->bed_target);
+            ui_monitor_printf(buf, n, BAMBU_VALID_BED | BAMBU_VALID_BED_TARGET, "%d/%d°C", (int)st->bed_temp, (int)st->bed_target);
             break;
         case CMP_CHAMBER:
-            snprintf(buf, n, "%d°C", (int)st->chamber_temp);
+            ui_monitor_printf(buf, n, BAMBU_VALID_CHAMBER, "%d°C", (int)st->chamber_temp);
             break;
         case CMP_LAYER:
-            snprintf(buf, n, "%d/%d", st->layer_num, st->total_layer);
+            ui_monitor_printf(buf, n, BAMBU_VALID_LAYER | BAMBU_VALID_TOTAL_LAYER, "%d/%d", st->layer_num, st->total_layer);
             break;
         case CMP_PERCENT:
-            snprintf(buf, n, "%d%%", st->mc_percent);
+            ui_monitor_printf(buf, n, BAMBU_VALID_PROGRESS, "%d%%", st->mc_percent);
             break;
         case CMP_REMAIN:
             if (st->mc_remaining > 0) {
                 int h = st->mc_remaining / 60;
                 int m = st->mc_remaining % 60;
-                if (h > 0) snprintf(buf, n, "%d%s%02d%s", h, L_HOUR, m, L_MIN);
-                else       snprintf(buf, n, "%d%s", m, L_MIN);
+                if (h > 0) snprintf(buf, n, "%dh%02dm", h, m);
+                else       snprintf(buf, n, "%dm", m);
             } else {
                 snprintf(buf, n, "--");
             }
             break;
         case CMP_SPEED:
-            snprintf(buf, n, "%d %d%%", st->spd_lvl, st->spd_mag);
+            ui_monitor_printf(buf, n, BAMBU_VALID_SPEED, "%d%%", st->spd_mag);
             break;
         case CMP_STATE:
             snprintf(buf, n, "%s", state_text(st->state));
@@ -201,7 +193,7 @@ static void cmp_value(char *buf, size_t n, int cmp, const bambu_state_t *st) {
 }
 
 // ---------------------------------------------------------------------------
-// Page 0: 希卡之眼 + 符文数据行
+// Page 0: 极简大字排版
 // ---------------------------------------------------------------------------
 static void build_page0(void) {
     const ui_theme_colors_t *c = ui_theme_get_colors();
@@ -213,117 +205,69 @@ static void build_page0(void) {
     lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, c->radius, 0);
-    lv_obj_set_style_border_width(card, 1, 0);
-    lv_obj_set_style_border_color(card, lv_color_hex(c->accent), 0);
-    lv_obj_set_style_border_opa(card, LV_OPA_30, 0);
-    lv_obj_set_style_pad_all(card, 8, 0);
+    lv_obj_set_style_border_width(card, 0, 0);
+    // 阴影色取主题次要文字色而非硬编码黑, 配合 OPA_10 得到极淡的浮起感
+    lv_obj_set_style_shadow_color(card, lv_color_hex(c->text_secondary), 0);
+    lv_obj_set_style_shadow_opa(card, LV_OPA_10, 0);
+    lv_obj_set_style_shadow_width(card, 8, 0);
+    lv_obj_set_style_pad_all(card, 16, 0);          // 大留白是素雅风的核心
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    // 内容区 208x236, 眼心放在水平正中、上半区
-    const int eye_cx = 104, eye_cy = 58;
+    // 内容区 192x220; 两列: 左 x=0, 右 x=96
+    const int W = 192, col_r = 96;
 
-    // ── 外侧细线装饰环 (纯装饰, 不参与数据) ──
-    lv_obj_t *ring = lv_obj_create(card);
-    if (ring) {
-        lv_obj_set_pos(ring, eye_cx - 54, eye_cy - 54);
-        lv_obj_set_size(ring, 108, 108);
-        lv_obj_remove_flag(ring, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_bg_opa(ring, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(ring, 1, 0);
-        lv_obj_set_style_border_color(ring, lv_color_hex(c->accent), 0);
-        lv_obj_set_style_border_opa(ring, LV_OPA_20, 0);
-        lv_obj_set_style_pad_all(ring, 0, 0);
-    }
-
-    // ── 进度弧环: 缺口朝下, 环底青蓝冷光 ──
-    s_arc = lv_arc_create(card);
-    if (s_arc) {
-        lv_obj_set_pos(s_arc, eye_cx - 46, eye_cy - 46);
-        lv_obj_set_size(s_arc, 92, 92);
-        lv_obj_remove_flag(s_arc, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_style_pad_all(s_arc, 0, 0);
-        lv_obj_set_style_arc_width(s_arc, 5, LV_PART_MAIN);
-        lv_obj_set_style_arc_width(s_arc, 5, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_rounded(s_arc, false, LV_PART_MAIN);
-        lv_obj_set_style_arc_color(s_arc, lv_color_hex(c->border), LV_PART_MAIN);
-        lv_obj_set_style_arc_rounded(s_arc, true, LV_PART_INDICATOR);
-        lv_obj_set_style_arc_color(s_arc, lv_color_hex(c->accent), LV_PART_INDICATOR);
-        lv_obj_set_style_shadow_color(s_arc, lv_color_hex(c->accent), LV_PART_INDICATOR);
-        lv_obj_set_style_shadow_width(s_arc, 10, LV_PART_INDICATOR);
-        lv_obj_set_style_shadow_opa(s_arc, LV_OPA_40, LV_PART_INDICATOR);
-        lv_obj_set_style_bg_opa(s_arc, LV_OPA_TRANSP, LV_PART_KNOB);   // 只读, 隐藏旋钮
-        lv_arc_set_bg_angles(s_arc, 135, 45);
-        lv_arc_set_range(s_arc, 0, 100);
-        lv_arc_set_value(s_arc, 0);
-    }
-
-    // ── 环内菱形瞳孔 (希卡之眼的"眼神", 颜色随打印状态变化) ──
-    s_pupil = mk_rune(card, eye_cx, eye_cy - 30, 14, c->accent, c->accent, LV_OPA_30);
-
-    // ── 环内百分比 ──
-    s_pct_lbl = mk_lbl(card, "--%", L_FONT_NUM_BIG, c->accent);
-    if (s_pct_lbl) {
-        lv_obj_set_width(s_pct_lbl, 92);
-        lv_label_set_long_mode(s_pct_lbl, LV_LABEL_LONG_CLIP);
-        lv_obj_set_style_text_align(s_pct_lbl, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_align(s_pct_lbl, LV_ALIGN_TOP_MID, 0, eye_cy - 16);
-        lv_obj_set_style_shadow_color(s_pct_lbl, lv_color_hex(c->accent), 0);
-        lv_obj_set_style_shadow_width(s_pct_lbl, 10, 0);
-        lv_obj_set_style_shadow_opa(s_pct_lbl, LV_OPA_30, 0);
-    }
-
-    // ── 状态行 (眼下方居中) ──
+    // ── 顶部状态行 (小字, 次要色) ──
     s_state_lbl = mk_lbl(card, "", L_FONT_TEXT, c->text_secondary);
     if (s_state_lbl) lv_label_set_text_fmt(s_state_lbl, "%s %s", LV_SYMBOL_WIFI, L_CONNECTING);
-    if (s_state_lbl) lv_obj_align(s_state_lbl, LV_ALIGN_TOP_MID, 0, 118);
+    if (s_state_lbl) lv_obj_set_pos(s_state_lbl, 0, 0);
 
-    // ── 4 行菱形符文, 串在一条竖直发光线上 ──
-    // 百分比在眼里、状态在中区, 所以跳过它们和 AMS, 其余按配置顺序取前 4 项
-    static const int fallback_cmp[RUNE_COUNT] = {CMP_LAYER, CMP_NOZZLE, CMP_BED, CMP_REMAIN};
+    // ── 超大百分比 (左对齐, 素雅风唯一的视觉重心) ──
+    s_pct_lbl = mk_lbl(card, "--%", L_FONT_NUM_HUGE, c->text_primary);
+    if (s_pct_lbl) {
+        lv_obj_set_pos(s_pct_lbl, -2, 18);          // 左移 2px 抵消字形侧边距
+        lv_obj_set_style_text_color(s_pct_lbl, lv_color_hex(c->text_primary), 0);
+    }
+
+    mk_rule(card, 80, W);
+
+    // ── 四个小数据位 (两行两列, 由 CFG_COMPONENT_ORDER 驱动) ──
+    // 百分比与状态已各占固定位置, 跳过它们和 AMS, 其余按配置取前 4 项
+    static const int fallback_cmp[SLOT_COUNT] = {CMP_LAYER, CMP_NOZZLE, CMP_BED, CMP_REMAIN};
     int n = 0;
-    for (int i = 0; i < (int)s_order_len && n < RUNE_COUNT; i++) {
+    for (int i = 0; i < (int)s_order_len && n < SLOT_COUNT; i++) {
         int cmp = s_order[i];
         if (cmp == CMP_PERCENT || cmp == CMP_STATE || cmp == CMP_AMS) continue;
-        s_rune_cmp[n++] = cmp;
+        s_slot_cmp[n++] = cmp;
     }
-    for (int i = n; i < RUNE_COUNT; i++) s_rune_cmp[i] = fallback_cmp[i];
+    for (int i = n; i < SLOT_COUNT; i++) s_slot_cmp[i] = fallback_cmp[i];
 
-    memset(s_rune, 0, sizeof(s_rune));
-    memset(s_rune_lbl, 0, sizeof(s_rune_lbl));
+    memset(s_slot_lbl, 0, sizeof(s_slot_lbl));
+    memset(s_slot_val, 0, sizeof(s_slot_val));
 
-    const int rune_cx = 8;            // 菱形节点中心 x (留足旋转后的对角半径)
-    const int rune_y0 = 148;          // 首行菱形中心 y (卡片加高后下移拉开)
-    const int rune_dy = 26;           // 行距 (加高后拉大)
+    // 第一行数值用 20px, 第二行用 14px: 形成主次层级而非平铺
+    const int label_y[2] = {90, 158};
+    const int value_y[2] = {106, 174};
+    const lv_font_t *value_font[2] = {L_FONT_NUM_MID, L_FONT_TEXT};
 
-    lv_obj_t *wire = lv_obj_create(card);
-    if (wire) {
-        lv_obj_set_pos(wire, rune_cx, rune_y0);
-        lv_obj_set_size(wire, 1, rune_dy * (RUNE_COUNT - 1));
-        lv_obj_remove_flag(wire, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_style_radius(wire, 0, 0);
-        lv_obj_set_style_border_width(wire, 0, 0);
-        lv_obj_set_style_pad_all(wire, 0, 0);
-        lv_obj_set_style_bg_color(wire, lv_color_hex(c->accent), 0);
-        lv_obj_set_style_bg_opa(wire, LV_OPA_30, 0);
+    for (int i = 0; i < SLOT_COUNT; i++) {
+        int cmp  = s_slot_cmp[i];
+        int row  = i / 2;
+        int x    = (i % 2) * col_r;
+
+        char lbl[48];
+        snprintf(lbl, sizeof(lbl), "%s %s", ICO(cmp), cmp_name(cmp));
+        s_slot_lbl[i] = mk_lbl(card, lbl, L_FONT_TEXT, c->text_secondary);
+        if (s_slot_lbl[i]) lv_obj_set_pos(s_slot_lbl[i], x, label_y[row]);
+
+        s_slot_val[i] = mk_lbl(card, "--", value_font[row], cmp_color(cmp, c));
+        if (s_slot_val[i]) lv_obj_set_pos(s_slot_val[i], x, value_y[row]);
     }
 
-    for (int i = 0; i < RUNE_COUNT; i++) {
-        int cmp = s_rune_cmp[i];
-        int cy  = rune_y0 + i * rune_dy;
-        // 先画菱形节点(压住竖线), 再叠文字
-        s_rune[i] = mk_rune(card, rune_cx, cy, 10,
-                            rune_color(cmp, c), rune_color(cmp, c), LV_OPA_40);
-
-        char init[64];
-        snprintf(init, sizeof(init), "%s %s --", ICO(cmp), cmp_name(cmp));
-        s_rune_lbl[i] = mk_lbl(card, init, L_FONT_TEXT, c->text_primary);
-        if (s_rune_lbl[i]) lv_obj_set_pos(s_rune_lbl[i], 20, cy - 8);
-    }
+    mk_rule(card, 146, W);
 }
 
 // ---------------------------------------------------------------------------
-// Page 1: AMS 菱形色片列表 + 发光余量细条
+// Page 1: AMS 极简列表
 // ---------------------------------------------------------------------------
 static void build_page1(void) {
     const ui_theme_colors_t *c = ui_theme_get_colors();
@@ -335,54 +279,58 @@ static void build_page1(void) {
     lv_obj_set_size(card, 224, 252);   // 卡片下探到 footer 上沿 (y286), 与其它风格一致
     lv_obj_set_style_bg_color(card, lv_color_hex(c->card_bg), 0);
     lv_obj_set_style_radius(card, c->radius, 0);
-    lv_obj_set_style_border_width(card, 1, 0);
-    lv_obj_set_style_border_color(card, lv_color_hex(c->accent), 0);
-    lv_obj_set_style_border_opa(card, LV_OPA_30, 0);
-    lv_obj_set_style_pad_all(card, 8, 0);
+    lv_obj_set_style_border_width(card, 0, 0);
+    lv_obj_set_style_shadow_color(card, lv_color_hex(c->text_secondary), 0);
+    lv_obj_set_style_shadow_opa(card, LV_OPA_10, 0);
+    lv_obj_set_style_shadow_width(card, 8, 0);
+    lv_obj_set_style_pad_all(card, 16, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->accent);
+    const int W = 192;
+
+    lv_obj_t *ams_t = mk_lbl(card, "", L_FONT_TEXT_BIG, c->text_primary);
+    ui_monitor_bind_filament_title(ams_t);
     if (ams_t) lv_label_set_text_fmt(ams_t, "%s %s", LV_SYMBOL_SD_CARD, L_AMS);
+    mk_rule(card, 30, W);
 
     memset(s_ams_chip, 0, sizeof(s_ams_chip));
     memset(s_ams_lbl, 0, sizeof(s_ams_lbl));
-    memset(s_ams_bar, 0, sizeof(s_ams_bar));
+    memset(s_ams_pct, 0, sizeof(s_ams_pct));
 
     for (int i = 0; i < 5; i++) {
-        int y = 40 + i * 40;   // 卡片加高后行距拉开
+        int y = 46 + i * 34;   // 卡片加高后行距拉开
 
-        // 菱形色片: 颜色由 MQTT tray_color 实时驱动 (透明料走空心描边分支)
-        s_ams_chip[i] = mk_rune(card, 10, y + 9, 16,
-                                c->accent, c->text_secondary, LV_OPA_COVER);
+        // 方形色片 (极简: 小方块而非圆形/菱形), 颜色由 MQTT tray_color 实时驱动
+        lv_obj_t *chip = lv_obj_create(card);
+        if (chip) {
+            lv_obj_set_pos(chip, 0, y + 1);
+            lv_obj_set_size(chip, 12, 12);
+            lv_obj_remove_flag(chip, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_style_radius(chip, 1, 0);
+            lv_obj_set_style_border_width(chip, 1, 0);
+            lv_obj_set_style_border_color(chip, lv_color_hex(c->border), 0);
+            lv_obj_set_style_pad_all(chip, 0, 0);
+            // 无数据时的占位色用主题次要文字色 (收到 MQTT 数据后被覆盖)
+            lv_obj_set_style_bg_color(chip, lv_color_hex(c->text_secondary), 0);
+        }
+        s_ams_chip[i] = chip;
 
         char buf[32];
         if (i < 4) snprintf(buf, sizeof(buf), "#%d %s", i + 1, L_EMPTY);
         else       snprintf(buf, sizeof(buf), "%s %s", L_EXT, L_EMPTY);
         s_ams_lbl[i] = mk_lbl(card, buf, L_FONT_TEXT, c->text_primary);
-        if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 26, y);
+        if (s_ams_lbl[i]) lv_obj_set_pos(s_ams_lbl[i], 20, y);
 
-        // 余量发光细条
-        lv_obj_t *bar = lv_bar_create(card);
-        if (bar) {
-            lv_obj_set_pos(bar, 26, y + 19);
-            lv_obj_set_size(bar, 174, 3);
-            lv_obj_set_style_radius(bar, 1, 0);
-            lv_obj_set_style_bg_color(bar, lv_color_hex(c->border), LV_PART_MAIN);
-            lv_obj_set_style_bg_color(bar, lv_color_hex(c->accent), LV_PART_INDICATOR);
-            lv_obj_set_style_shadow_color(bar, lv_color_hex(c->accent), LV_PART_INDICATOR);
-            lv_obj_set_style_shadow_width(bar, 6, LV_PART_INDICATOR);
-            lv_obj_set_style_shadow_opa(bar, LV_OPA_40, LV_PART_INDICATOR);
-            lv_bar_set_range(bar, 0, 100);
-            lv_bar_set_value(bar, 0, LV_ANIM_OFF);
-            s_ams_bar[i] = bar;
-        }
+        // 余量右对齐: align 写的是样式, 文字变长后布局引擎会重新右对齐
+        s_ams_pct[i] = mk_lbl(card, "--", L_FONT_NUM, c->text_secondary);
+        if (s_ams_pct[i]) lv_obj_align(s_ams_pct[i], LV_ALIGN_TOP_RIGHT, 0, y);
     }
 }
 
 // ---------------------------------------------------------------------------
 // 构建整个屏幕 (首次创建所有持久对象)
 // ---------------------------------------------------------------------------
-void style_sheikah_build(void) {
+void style_white_build(void) {
     resolve_order();
     if (!s_scr) return;
     const ui_theme_colors_t *c = ui_theme_get_colors();
@@ -391,16 +339,13 @@ void style_sheikah_build(void) {
 
     lv_obj_set_style_bg_color(s_scr, lv_color_hex(c->bg), 0);
 
-    // ── 标题栏 (持久): 青蓝发光下边框 ──
+    // ── 标题栏 (持久) ──
     lv_obj_t *header = lv_obj_create(s_scr);
     lv_obj_set_pos(header, 0, 0);
     lv_obj_set_size(header, 240, 30);
     lv_obj_set_style_bg_color(header, lv_color_hex(c->header_bg), 0);
     lv_obj_set_style_radius(header, 0, 0);
-    lv_obj_set_style_border_width(header, 1, 0);
-    lv_obj_set_style_border_color(header, lv_color_hex(c->accent), 0);
-    lv_obj_set_style_border_side(header, LV_BORDER_SIDE_BOTTOM, 0);
-    lv_obj_set_style_border_opa(header, LV_OPA_40, 0);
+    lv_obj_set_style_border_width(header, 0, 0);
     lv_obj_set_style_pad_all(header, 4, 0);
     lv_obj_remove_flag(header, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -409,6 +354,7 @@ void style_sheikah_build(void) {
     const uint32_t ftxt = ui_theme_on_color(c->footer_bg);
 
     lv_obj_t *title = mk_lbl(header, L_TITLE_BAMBU, L_FONT_TEXT, htxt);
+    ui_monitor_bind_printer_title(title);
     if (title) lv_obj_align(title, LV_ALIGN_LEFT_MID, 4, 0);
 
     s_time_lbl = mk_lbl(header, "--:--", L_FONT_NUM, htxt);
@@ -417,25 +363,27 @@ void style_sheikah_build(void) {
     s_bat_lbl = mk_lbl(header, LV_SYMBOL_BATTERY_FULL " --", L_FONT_SYMBOL, htxt);
     if (s_bat_lbl) lv_obj_align(s_bat_lbl, LV_ALIGN_RIGHT_MID, -4, 0);
 
-    // ── 底部栏 (持久): 青蓝发光上边框 ──
+    // ── 底部栏 (持久) ──
     lv_obj_t *footer = lv_obj_create(s_scr);
     lv_obj_set_pos(footer, 0, 290);
     lv_obj_set_size(footer, 240, 30);
     lv_obj_set_style_bg_color(footer, lv_color_hex(c->footer_bg), 0);
     lv_obj_set_style_radius(footer, 0, 0);
+    // footer 与浅灰背景太接近, 加 1px 顶边线让底栏有边界, 不显空
     lv_obj_set_style_border_width(footer, 1, 0);
-    lv_obj_set_style_border_color(footer, lv_color_hex(c->accent), 0);
+    lv_obj_set_style_border_color(footer, lv_color_hex(c->border), 0);
     lv_obj_set_style_border_side(footer, LV_BORDER_SIDE_TOP, 0);
-    lv_obj_set_style_border_opa(footer, LV_OPA_40, 0);
     lv_obj_set_style_pad_all(footer, 4, 0);
     lv_obj_remove_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *nav = mk_lbl(footer, L_NAV_HINT, L_FONT_TEXT, ftxt);
+    ui_monitor_bind_nav_label(nav);
     if (nav) lv_obj_align(nav, LV_ALIGN_LEFT_MID, 4, 0);
 
     char pg[16];
     snprintf(pg, sizeof(pg), "%d/%d", s_page + 1, s_total_pages);
     s_pg_lbl = mk_lbl(footer, pg, L_FONT_NUM, ftxt);
+    ui_monitor_bind_page_label(s_pg_lbl);
     if (s_pg_lbl) lv_obj_align(s_pg_lbl, LV_ALIGN_RIGHT_MID, -8, 0);
 
     // ── 内容区域容器 ──
@@ -461,8 +409,8 @@ void style_sheikah_build(void) {
 // ---------------------------------------------------------------------------
 // 更新 (每秒调用)
 // ---------------------------------------------------------------------------
-void style_sheikah_update(void) {
-    bambu_state_t *st = &g_bambu_state;
+void style_white_update(void) {
+    bambu_state_t *st = ui_monitor_state();
     const ui_theme_colors_t *c = ui_theme_get_colors();
     char buf[64];
 
@@ -488,25 +436,16 @@ void style_sheikah_update(void) {
         lv_obj_set_style_text_color(s_bat_lbl, lv_color_hex(ui_theme_battery_color(soc)), 0);
     }
 
-    bool conn = bambu_mqtt_connected();
-    uint32_t sc = conn ? state_color(st->state, c) : c->error;
-
-    // ── Page 0: 希卡之眼 + 符文行 ──
+    // ── Page 0 ──
     if (s_page == 0) {
-        if (s_arc) lv_arc_set_value(s_arc, st->mc_percent);
-
         if (s_pct_lbl) {
-            snprintf(buf, sizeof(buf), "%d%%", st->mc_percent);
+            ui_monitor_printf(buf, sizeof(buf), BAMBU_VALID_PROGRESS, "%d%%", st->mc_percent);
             lv_label_set_text(s_pct_lbl, buf);
         }
 
-        // 瞳孔与状态行同步换色, 未连接时统一用错误色
-        if (s_pupil) {
-            lv_obj_set_style_border_color(s_pupil, lv_color_hex(sc), 0);
-            lv_obj_set_style_bg_color(s_pupil, lv_color_hex(sc), 0);
-            lv_obj_set_style_shadow_color(s_pupil, lv_color_hex(sc), 0);
-        }
         if (s_state_lbl) {
+            bool conn = ui_monitor_data_ready();
+            uint32_t sc = conn ? state_color(st->state, c) : c->error;
             if (conn) snprintf(buf, sizeof(buf), "%s %s",
                                ui_theme_state_icon(st->state, true), state_text(st->state));
             else      snprintf(buf, sizeof(buf), "%s %s", LV_SYMBOL_WIFI, L_CONNECTING);
@@ -514,21 +453,10 @@ void style_sheikah_update(void) {
             lv_obj_set_style_text_color(s_state_lbl, lv_color_hex(sc), 0);
         }
 
-        for (int i = 0; i < RUNE_COUNT; i++) {
-            if (!s_rune_lbl[i]) continue;
-            int cmp = s_rune_cmp[i];
-            char val[24];
-            cmp_value(val, sizeof(val), cmp, st);
-            snprintf(buf, sizeof(buf), "%s %s %s", ICO(cmp), cmp_name(cmp), val);
-            lv_label_set_text(s_rune_lbl[i], buf);
-
-            // 状态行组件的符文节点跟随状态色, 其余保持各自语义色
-            if (s_rune[i]) {
-                uint32_t rc = (cmp == CMP_STATE) ? sc : rune_color(cmp, c);
-                lv_obj_set_style_border_color(s_rune[i], lv_color_hex(rc), 0);
-                lv_obj_set_style_bg_color(s_rune[i], lv_color_hex(rc), 0);
-                lv_obj_set_style_shadow_color(s_rune[i], lv_color_hex(rc), 0);
-            }
+        for (int i = 0; i < SLOT_COUNT; i++) {
+            if (!s_slot_val[i]) continue;
+            cmp_value(buf, sizeof(buf), s_slot_cmp[i], st);
+            lv_label_set_text(s_slot_val[i], buf);
         }
     }
 
@@ -536,13 +464,11 @@ void style_sheikah_update(void) {
     if (s_page == 1) {
         for (int i = 0; i < 5; i++) {
             if (!s_ams_lbl[i]) continue;
-            if (i < 4 && i >= st->ams_count) continue;
+
             bambu_ams_tray_t *t = (i < 4) ? &st->trays[i] : &st->vt_tray;
             if (t->type[0]) {
-                if (i < 4) snprintf(buf, sizeof(buf), "#%d %s %d%%",
-                                    i + 1, t->type, (int)t->remain);
-                else       snprintf(buf, sizeof(buf), "%s %s %d%%",
-                                    L_EXT, t->type, (int)t->remain);
+                if (i < 4) snprintf(buf, sizeof(buf), "#%d %s", i + 1, t->type);
+                else       snprintf(buf, sizeof(buf), "%s %s", L_EXT, t->type);
             } else {
                 if (i < 4) snprintf(buf, sizeof(buf), "#%d %s", i + 1, L_EMPTY);
                 else       snprintf(buf, sizeof(buf), "%s %s", L_EXT, L_EMPTY);
@@ -552,8 +478,11 @@ void style_sheikah_update(void) {
             lv_obj_set_style_text_color(s_ams_lbl[i],
                 lv_color_hex(t->active ? c->accent : c->text_primary), 0);
 
+            if (s_ams_pct[i]) {
+                ui_monitor_tray_printf(buf, sizeof(buf), t, "%d%%", (int)t->remain);
+                lv_label_set_text(s_ams_pct[i], buf);
+            }
             if (s_ams_chip[i]) ui_theme_tray_swatch(s_ams_chip[i], t);
-            if (s_ams_bar[i])  lv_bar_set_value(s_ams_bar[i], (int32_t)t->remain, LV_ANIM_OFF);
         }
     }
 }
@@ -561,8 +490,8 @@ void style_sheikah_update(void) {
 // ---------------------------------------------------------------------------
 // 翻页 (显示/隐藏切换, 不 destroy/rebuild)
 // ---------------------------------------------------------------------------
-int style_sheikah_page_count(void) { return s_total_pages; }
-int style_sheikah_current_page(void) { return s_page; }
+int style_white_page_count(void) { return s_total_pages; }
+int style_white_current_page(void) { return s_page; }
 
 static void show_page(int page) {
     for (int i = 0; i < 2; i++) {
@@ -577,13 +506,13 @@ static void show_page(int page) {
     }
 }
 
-void style_sheikah_next_page(void) {
+void style_white_next_page(void) {
     s_page = (s_page + 1) % s_total_pages;
     ESP_LOGI(TAG, "翻页 -> page %d/%d", s_page + 1, s_total_pages);
     show_page(s_page);
 }
 
-void style_sheikah_prev_page(void) {
+void style_white_prev_page(void) {
     s_page = (s_page - 1 + s_total_pages) % s_total_pages;
     ESP_LOGI(TAG, "翻页 -> page %d/%d", s_page + 1, s_total_pages);
     show_page(s_page);
