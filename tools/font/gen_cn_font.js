@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// tools/gen_cn_font.js —— 从 Noto Sans SC 生成裁剪版中文字体 (LVGL 9 C 数组)
+// tools/font/gen_cn_font.js —— 从 Noto Sans SC 生成裁剪版中文字体 (LVGL 9 C 数组)
 //
 // 用法 (项目根目录):
-//   node tools/gen_cn_font.js
+//   node tools/font/gen_cn_font.js
 //
 // 产物:
 //   main/ui/fonts/lv_font_cn_14.c   正文中文字体 (14px, 4bpp)
 //   main/ui/fonts/lv_font_cn_20.c   标题中文字体 (20px, 4bpp)
 //   main/ui/fonts/lv_font_cn.h      LV_FONT_DECLARE 声明
 //
-// 字符集来源: tools/cn_chars.txt (预留词库) + main/ui/ui_lang.c 中文分支实际用字
+// 字符集来源: tools/font/cn_chars.txt (预留词库) + main/ui/ui_lang.c 中文分支实际用字
 // 源字体: Noto Sans SC (SIL Open Font License 1.1, 可自由裁剪与再分发)
 //
 // 依赖: lv_font_conv (通过 npx 缓存或本地 node_modules 提供), 首次运行需联网拉取一次
@@ -19,7 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'main', 'ui', 'fonts');
 const SIZES = [14, 20];
 
@@ -43,6 +43,7 @@ function findSourceFont() {
 // 定位 lv_font_conv 的 CLI 入口 (优先本地/缓存的 JS, 避免 shell 传参编码问题)
 function findLvFontConvCli() {
   const candidates = [];
+  if (process.env.LV_FONT_CONV_CLI) candidates.push(process.env.LV_FONT_CONV_CLI);
   const local = path.join(ROOT, 'tools', '.fontconv', 'node_modules', 'lv_font_conv', 'lv_font_conv.js');
   candidates.push(local);
   const cacheRoot = path.join(process.env.LOCALAPPDATA || '', 'npm-cache', '_npx');
@@ -63,18 +64,16 @@ function collectChars() {
   const set = new Set();
   const addText = (s) => { for (const ch of s) if (ch.codePointAt(0) > 0x7F) set.add(ch); };
 
-  const charsFile = path.join(ROOT, 'tools', 'cn_chars.txt');
+  const charsFile = path.join(ROOT, 'tools', 'font', 'cn_chars.txt');
   if (fs.existsSync(charsFile)) addText(fs.readFileSync(charsFile, 'utf8'));
 
-  const langFile = path.join(ROOT, 'main', 'ui', 'ui_lang.c');
-  if (fs.existsSync(langFile)) {
-    const src = fs.readFileSync(langFile, 'utf8');
-    // 取 "中文 (裁剪版" 标记之后到数组结尾的分支
-    const m = src.match(/\/\/\s*中文[\s\S]*?\n\};/);
-    if (m) {
-      for (const lit of m[0].matchAll(/"([^"]*)"/g)) addText(lit[1]);
-    } else {
-      throw new Error('ui_lang.c 中未找到中文分支 (标记: "// 中文")，请检查字符串表结构');
+  // Include all UI string literals, skipping comments without stripping strings.
+  const uiDir = path.join(ROOT, 'main', 'ui');
+  for (const name of fs.readdirSync(uiDir, { recursive: true })) {
+    if (!/\.[ch]$/.test(name) || name.startsWith('fonts')) continue;
+    const src = fs.readFileSync(path.join(uiDir, name), 'utf8');
+    for (const match of src.matchAll(/"(?:\\.|[^"\\])*"|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g)) {
+      if (match[0].startsWith('"')) addText(match[0].slice(1, -1));
     }
   }
   for (const cp of EXTRA_CODEPOINTS) set.add(String.fromCodePoint(cp));
@@ -140,7 +139,7 @@ function main() {
 
   // 生成声明头文件
   const header = [
-    '// main/ui/fonts/lv_font_cn.h —— 裁剪版中文字体声明 (由 tools/gen_cn_font.js 生成)',
+    '// main/ui/fonts/lv_font_cn.h —— 裁剪版中文字体声明 (由 tools/font/gen_cn_font.js 生成)',
     '// 源字体: Noto Sans SC, SIL Open Font License 1.1',
     '// 只含汉字子集; ASCII/数字通过 .fallback 回落同字号 Montserrat',
     '#pragma once',
